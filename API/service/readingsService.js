@@ -1,101 +1,87 @@
 import pool from '../config/config.js';
 import { io } from '../../server.js';
+import { RunService } from './runService.js'; // 👈 PRECISAMOS CRIAR ESSE SERVICE
 
-/**
- * payload: array de leituras:
- * {
- *   bike_uuid: string,        -- obrigatório
- *   delta_us: number|null,
- *   pulse_count: number (default 1),
- *   speed_kmh: number|null,
- *   battery_pct: number|null,
- *   lat: number|null,
- *   lon: number|null,
- *   ts: string|null,
- *   run_id: number|null
- * }
- *
- * options: { deviceId } -> id do device autenticado
- */
 export class ReadingsService {
     static async processBatch(payload, options = {}) {
         if (!payload || payload.length === 0) return { inserted: 0 };
 
-        // map bike_uuid -> bike row
-        const bikeUuids = [...new Set(payload.map(p => p.bike_uuid).filter(Boolean))];
+        // Mapear id_bike para a linha da bike
+        const idBikes = [...new Set(payload.map(p => p.id_bike).filter(Boolean))];
         const bikesMap = {};
-        if (bikeUuids.length) {
+        if (idBikes.length) {
             const [rows] = await pool.query(
-                'SELECT id, uuid, circunferencia_m, pulses_per_rotation FROM bikes WHERE uuid IN (?)',
-                [bikeUuids]
+                'SELECT id, id_bike, circunferencia_m FROM Bike WHERE id_bike IN (?)',
+                [idBikes]
             );
-            for (const r of rows) bikesMap[r.uuid] = r;
+            for (const r of rows) bikesMap[r.id_bike] = r;
         }
 
-        // preparar insert bulk
         const placeholders = [];
         const values = [];
 
         for (const p of payload) {
-            const bike = p.bike_uuid ? bikesMap[p.bike_uuid] : null;
+            const bike = p.id_bike ? bikesMap[p.id_bike] : null;
             if (!bike) {
-                console.warn('Leitura ignorada: bike_uuid não encontrada', p.bike_uuid);
+                console.warn('Leitura ignorada: id_bike não encontrada', p.id_bike);
                 continue;
             }
 
-            const pulse_count = Number(p.pulse_count ?? 1);
-            const delta_us = p.delta_us != null ? Number(p.delta_us) : null;
-            let speed_kmh = p.speed_kmh != null ? Number(p.speed_kmh) : null;
-            let valid = p.valid != null ? !!p.valid : true;
-
-            // calcular speed se possível
-            if ((speed_kmh === null || isNaN(speed_kmh)) && delta_us && delta_us > 0) {
-                const distance_m = (Number(bike.circunferencia_m) * (pulse_count / Number(bike.pulses_per_rotation)));
-                const speed_m_s = distance_m / (delta_us / 1_000_000);
-                speed_kmh = speed_m_s * 3.6;
-                if (!isFinite(speed_kmh) || speed_kmh > 200) valid = false;
+            // 🚨 CORREÇÃO: Usar RunService para obter run ativa
+            let runId = p.run_id;
+            if (!runId) {
+                // Buscar ou criar run ativa para esta bike
+                const activeRun = await RunService.getOrCreateActiveRun(bike.id);
+                runId = activeRun.id;
             }
 
-            // check for suspicious delta_us (debounce)
-            if (delta_us && delta_us < 1000) valid = false; // <1ms provavelmente glitch
+            const rotacao_regis = p.ts ? new Date(p.ts).toISOString().slice(0, 19).replace('T', ' ') : 
+                                       new Date().toISOString().slice(0, 19).replace('T', ' ');
+            
+            // rotacao_next em microssegundos (delta_us)
+            const rotacao_next = p.delta_us || 0;
 
-            const ts = p.ts ?? new Date().toISOString().slice(0, 19).replace('T', ' ');
+            // Calcular velocidade
+            let speed_kmh = null;
+            if (rotacao_next > 0) {
+                const distancia_por_rotacao = bike.circunferencia_m;
+                const tempo_segundos = rotacao_next / 1000000;
+                const velocidade_ms = distancia_por_rotacao / tempo_segundos;
+                speed_kmh = velocidade_ms * 3.6;
+                
+                if (speed_kmh > 200) {
+                    console.warn('Velocidade inválida ignorada:', speed_kmh);
+                    continue;
+                }
+            }
 
-            placeholders.push('(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(6))');
+            // 🚨 CORREÇÃO: Removi device_id (não existe na tabela Dados)
+            placeholders.push('(?, ?, ?, ?)');
             values.push(
-                p.run_id ?? null,
-                bike.id,
-                options.deviceId ?? p.device_id ?? null,
-                ts,
-                delta_us,
-                pulse_count,
-                speed_kmh,
-                p.battery_pct ?? null,
-                p.lat ?? null,
-                p.lon ?? null,
-                valid ? 1 : 0
+                bike.id,        // id_bike
+                runId,          // id_run  
+                rotacao_regis,  // rotacao_regis
+                rotacao_next    // rotacao_next
             );
 
-            // emitir para dashboard
-            if (speed_kmh != null && valid) {
-                io.to(bike.uuid).emit('reading', {
-                    bike_uuid: bike.uuid,
-                    speed_kmh: Number(Number(speed_kmh).toFixed(3)),
-                    ts,
-                    battery_pct: p.battery_pct ?? null,
-                    lat: p.lat ?? null,
-                    lon: p.lon ?? null
+            // Emitir via WebSocket
+            if (speed_kmh !== null) {
+                io.to(bike.id_bike).emit('speed_update', {
+                    bike_id: bike.id_bike,
+                    speed_kmh: Number(speed_kmh.toFixed(1)),
+                    timestamp: rotacao_regis
                 });
             }
         }
 
         if (placeholders.length === 0) return { inserted: 0 };
 
+        // 🚨 CORREÇÃO: SQL atualizado sem device_id
         const sql = `
-      INSERT INTO readings
-      (run_id, bike_id, device_id, ts, delta_us, pulse_count, speed_kmh, battery_pct, lat, lon, valid, created_at)
-      VALUES ${placeholders.join(',')}
-    `;
+            INSERT INTO Dados (id_bike, id_run, rotacao_regis, rotacao_next)
+            VALUES ${placeholders.join(',')}
+        `;
+        
         const [result] = await pool.query(sql, values);
         return { inserted: result.affectedRows };
     }

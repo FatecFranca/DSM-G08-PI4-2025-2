@@ -36,11 +36,16 @@ export class BikeController {
 
     create = async (req, res) => {
         try {
-            const { nome, circunferencia_m, pulses_per_rotation } = req.body;
+            const { id_bike, name, circunferencia_m, pulses_per_rotation, description } = req.body;
+            const user_id = req.userId; // 👈 ADICIONEI - pega do middleware de autenticação
+
             const newBike = await this.service.create({
-                nome,
-                circunferencia_m: circunferencia_m || 2.1, // valor padrão ~67cm diâmetro
-                pulses_per_rotation: pulses_per_rotation || 1
+                id_bike,           // 👈 MUDANÇA: agora usa id_bike (string única)
+                name: name || 'Minha Bike', // 👈 MUDANÇA: de "nome" para "name"
+                circunferencia_m: circunferencia_m || 2.1,
+                pulses_per_rotation: pulses_per_rotation || 1,
+                description: description || null, // 👈 NOVO CAMPO
+                user_id: user_id   // 👈 NOVO CAMPO (obrigatório)
             });
             res.status(201).json(newBike);
         } catch (error) {
@@ -140,6 +145,37 @@ export class BikeController {
             
             const speedData = this.service.calculateSpeed(bike, pulse_count, time_interval);
             res.json(speedData);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    };
+
+    // 👆 SEU CÓDIGO ORIGINAL (com pequenos ajustes) 👆
+
+    // 👇 MÉTODOS NOVOS QUE PRECISAM SER ADICIONADOS 👇
+
+    // Buscar bikes do usuário logado
+    getUserBikes = async (req, res) => {
+        try {
+            const userId = req.userId; // Do middleware de autenticação
+            const bikes = await this.service.getByUserId(userId);
+            res.json(bikes);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    };
+
+    // Buscar bike por id_bike (para o IoT)
+    getByIdBike = async (req, res) => {
+        try {
+            const { id_bike } = req.params;
+            const bike = await this.service.getByIdBike(id_bike);
+            
+            if (!bike) {
+                return res.status(404).json({ error: 'Bike not found' });
+            }
+            
+            res.json(bike);
         } catch (error) {
             res.status(500).json({ error: error.message });
         }
