@@ -1,7 +1,7 @@
 import pool from '../config/config.js';
 
 // Autenticação simplificada para IoT - usa a tabela Bike
-export async function simpleIotAuth(req, res, next) {
+const simpleIotAuth = async (req, res, next) => {
     const bikeId = req.header('x-bike-id');
     
     if (!bikeId) {
@@ -34,5 +34,4 @@ export async function simpleIotAuth(req, res, next) {
     }
 }
 
-// Export named para manter padrão com outros middlewares
 export { simpleIotAuth };
