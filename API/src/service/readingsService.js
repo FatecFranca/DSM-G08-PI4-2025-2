@@ -1,6 +1,6 @@
 import pool from '../config/config.js';
 import { io } from '../../server.js';
-import { RunService } from './runService.js'; // 👈 PRECISAMOS CRIAR ESSE SERVICE
+import { RunService } from './runService.js';
 
 export class ReadingsService {
     static async processBatch(payload, options = {}) {
@@ -27,10 +27,9 @@ export class ReadingsService {
                 continue;
             }
 
-            // 🚨 CORREÇÃO: Usar RunService para obter run ativa
+            // Usar RunService para obter run ativa
             let runId = p.run_id;
             if (!runId) {
-                // Buscar ou criar run ativa para esta bike
                 const activeRun = await RunService.getOrCreateActiveRun(bike.id);
                 runId = activeRun.id;
             }
@@ -38,7 +37,6 @@ export class ReadingsService {
             const rotacao_regis = p.ts ? new Date(p.ts).toISOString().slice(0, 19).replace('T', ' ') : 
                                        new Date().toISOString().slice(0, 19).replace('T', ' ');
             
-            // rotacao_next em microssegundos (delta_us)
             const rotacao_next = p.delta_us || 0;
 
             // Calcular velocidade
@@ -55,17 +53,16 @@ export class ReadingsService {
                 }
             }
 
-            // 🚨 CORREÇÃO: Removi device_id (não existe na tabela Dados)
             placeholders.push('(?, ?, ?, ?)');
             values.push(
-                bike.id,        // id_bike
-                runId,          // id_run  
-                rotacao_regis,  // rotacao_regis
-                rotacao_next    // rotacao_next
+                bike.id,
+                runId,
+                rotacao_regis,
+                rotacao_next
             );
 
-            // Emitir via WebSocket
-            if (speed_kmh !== null) {
+            // Emitir via WebSocket (se configurado)
+            if (speed_kmh !== null && io) {
                 io.to(bike.id_bike).emit('speed_update', {
                     bike_id: bike.id_bike,
                     speed_kmh: Number(speed_kmh.toFixed(1)),
@@ -76,7 +73,7 @@ export class ReadingsService {
 
         if (placeholders.length === 0) return { inserted: 0 };
 
-        // 🚨 CORREÇÃO: SQL atualizado sem device_id
+        // Inserir na tabela Dados
         const sql = `
             INSERT INTO Dados (id_bike, id_run, rotacao_regis, rotacao_next)
             VALUES ${placeholders.join(',')}
