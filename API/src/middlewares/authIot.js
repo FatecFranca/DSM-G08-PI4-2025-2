@@ -1,37 +1,38 @@
 import pool from '../config/config.js';
 
-// Autenticação simplificada para IoT - usa a tabela Bike
-const simpleIotAuth = async (req, res, next) => {
-    const bikeId = req.header('x-bike-id');
+// Middleware SIMPLIFICADO - token permanente por usuário
+export async function authIotSimple(req, res, next) {
+    const token = req.header('x-iot-token');
     
-    if (!bikeId) {
-        return res.status(401).json({ error: 'x-bike-id header required' });
+    if (!token) {
+        return res.status(401).json({ error: 'Token IoT não fornecido' });
     }
 
     try {
-        // Verificar se a bike existe na tabela Bike
-        const [rows] = await pool.query(
-            'SELECT id, id_bike, circunferencia_m FROM Bike WHERE id_bike = ?', 
-            [bikeId]
+        // Verificar token direto na tabela Users
+        const [userRows] = await pool.query(
+            `SELECT id, email, name 
+             FROM Users 
+             WHERE iot_token = ?`,
+            [token]
         );
-        
-        if (!rows || rows.length === 0) {
-            return res.status(401).json({ error: 'Bike not registered' });
+
+        if (userRows.length === 0) {
+            return res.status(401).json({ error: 'Token IoT inválido' });
         }
 
-        req.bike = rows[0];
+        const user = userRows[0];
         
-        // Atualizar last_seen
-        await pool.query(
-            'UPDATE Bike SET last_seen = UTC_TIMESTAMP(6) WHERE id = ?', 
-            [rows[0].id]
-        );
-        
+        // Adicionar informações ao request
+        req.user = {
+            user_id: user.id,
+            email: user.email,
+            name: user.name
+        };
+
         next();
-    } catch (err) {
-        console.error('authIot error', err);
-        res.status(500).json({ error: 'Erro na autenticação IoT' });
+    } catch (error) {
+        console.error('Erro na autenticação IoT simplificada:', error);
+        res.status(500).json({ error: 'Erro interno do servidor' });
     }
 }
-
-export { simpleIotAuth };

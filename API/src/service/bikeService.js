@@ -1,11 +1,11 @@
 import { BikeRepository } from '../repositories/bikeRepository.js';
+import pool from '../config/config.js'; // 👈 ADICIONE ESTA LINHA
 
 export class BikeService {
     constructor(repository) {
         this.repository = repository;
     }
 
-    // Métodos CRUD básicos (para manter compatibilidade)
     async getAll() {
         return await this.repository.getAll();
     }
@@ -26,38 +26,24 @@ export class BikeService {
         return await this.repository.delete(id);
     }
 
-    // 🔥 MÉTODOS ESPECÍFICOS PARA IOT
-    async getByDeviceId(deviceId) {
-        // Como não temos deviceId separado, usamos o UUID
-        return await this.repository.findByUuid(deviceId);
+    async getByUserId(user_id) {
+        return await this.repository.getByUserId(user_id);
     }
 
-    async updateStatus(bikeId, status) {
-        // Primeiro precisamos adicionar campo 'status' na tabela
-        const [result] = await pool.query(
-            `UPDATE bikes SET status = ?, last_seen = UTC_TIMESTAMP(6) WHERE id = ?`,
-            [status, bikeId]
-        );
-        if (result.affectedRows === 0) return null;
-        return this.repository.getOne(bikeId);
+    async getByIdBike(id_bike) {
+        return await this.repository.getByIdBike(id_bike);
     }
 
-    async updateLastSeen(bikeId) {
-        const [result] = await pool.query(
-            `UPDATE bikes SET last_seen = UTC_TIMESTAMP(6) WHERE id = ?`,
-            [bikeId]
-        );
-        return result.affectedRows > 0;
+    async updateStatus(id, status) {
+        // 🔥 CORREÇÃO: Use o repository em vez do pool direto
+        return await this.repository.updateStatus(id, status);
     }
 
-    // Cálculo de velocidade baseado nas pulsações do sensor Hall
+    // Cálculo de velocidade SIMPLIFICADO - SEM pulses_per_rotation
     calculateSpeed(bike, pulseCount, timeInterval) {
-        // bike.circunferencia_m = perímetro da roda em metros
-        // bike.pulses_per_rotation = pulsos por rotação (normalmente 1)
-        // timeInterval = tempo em segundos entre as leituras
-        
-        const distancePerPulse = bike.circunferencia_m / bike.pulses_per_rotation;
-        const totalDistance = pulseCount * distancePerPulse; // em metros
+        // 1 PULSO POR ROTAÇÃO (FIXO)
+        const distancePerPulse = bike.circunferencia_m; // metros por pulso
+        const totalDistance = pulseCount * distancePerPulse; // metros
         const speedMs = totalDistance / timeInterval; // m/s
         const speedKmh = speedMs * 3.6; // km/h
         
@@ -65,7 +51,8 @@ export class BikeService {
             speed_ms: speedMs,
             speed_kmh: speedKmh,
             distance_m: totalDistance,
-            pulse_count: pulseCount
+            pulse_count: pulseCount,
+            circunferencia_m: bike.circunferencia_m
         };
     }
 }

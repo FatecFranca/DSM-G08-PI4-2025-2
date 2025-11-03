@@ -7,9 +7,21 @@ const service = new BikeService(repository);
 export class BikeController {
     constructor(service) {
         this.service = service;
+        
+        // 🔥 GARANTIR BINDING DOS MÉTODOS
+        this.getAll = this.getAll.bind(this);
+        this.getOne = this.getOne.bind(this);
+        this.create = this.create.bind(this);
+        this.update = this.update.bind(this);
+        this.delete = this.delete.bind(this);
+        this.getUserBikes = this.getUserBikes.bind(this);
+        this.getByIdBike = this.getByIdBike.bind(this);
+        this.updateStatus = this.updateStatus.bind(this);
+        this.updateLastSeen = this.updateLastSeen.bind(this);
+        this.calculateSpeed = this.calculateSpeed.bind(this);
     }
 
-    // 🔄 MÉTODOS CRUD (compatibilidade com rotas existentes)
+    // 🔄 MÉTODOS CRUD
     getAll = async (req, res) => {
         try {
             const bikes = await this.service.getAll();
@@ -36,16 +48,15 @@ export class BikeController {
 
     create = async (req, res) => {
         try {
-            const { id_bike, name, circunferencia_m, pulses_per_rotation, description } = req.body;
-            const user_id = req.userId; // 👈 ADICIONEI - pega do middleware de autenticação
+            const { id_bike, name, circunferencia_m, description } = req.body;
+            const user_id = req.userId;
 
             const newBike = await this.service.create({
-                id_bike,           // 👈 MUDANÇA: agora usa id_bike (string única)
-                name: name || 'Minha Bike', // 👈 MUDANÇA: de "nome" para "name"
+                id_bike,
+                name: name || 'Minha Bike',
                 circunferencia_m: circunferencia_m || 2.1,
-                pulses_per_rotation: pulses_per_rotation || 1,
-                description: description || null, // 👈 NOVO CAMPO
-                user_id: user_id   // 👈 NOVO CAMPO (obrigatório)
+                description: description || null,
+                user_id: user_id
             });
             res.status(201).json(newBike);
         } catch (error) {
@@ -84,11 +95,22 @@ export class BikeController {
         }
     };
 
-    // 🔥 NOVOS MÉTODOS PARA IOT
-    getByDeviceId = async (req, res) => {
+    // Buscar bikes do usuário logado
+    getUserBikes = async (req, res) => {
         try {
-            const { deviceId } = req.params;
-            const bike = await this.service.getByDeviceId(deviceId);
+            const userId = req.userId;
+            const bikes = await this.service.getByUserId(userId);
+            res.json(bikes);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    };
+
+    // Buscar bike por id_bike (para o IoT)
+    getByIdBike = async (req, res) => {
+        try {
+            const { id_bike } = req.params;
+            const bike = await this.service.getByIdBike(id_bike);
             
             if (!bike) {
                 return res.status(404).json({ error: 'Bike not found' });
@@ -100,18 +122,19 @@ export class BikeController {
         }
     };
 
+    // 🔥 MÉTODO updateStatus CORRIGIDO
     updateStatus = async (req, res) => {
         try {
             const { id } = req.params;
-            const { status } = req.body; // 'online', 'offline', 'maintenance'
+            const { status } = req.body;
             
-            const updatedBike = await this.service.updateStatus(id, status);
+            const success = await this.service.updateStatus(id, status);
             
-            if (!updatedBike) {
+            if (!success) {
                 return res.status(404).json({ error: 'Bike not found' });
             }
             
-            res.json(updatedBike);
+            res.json({ message: 'Status atualizado', bikeId: id, status });
         } catch (error) {
             res.status(500).json({ error: error.message });
         }
@@ -136,7 +159,7 @@ export class BikeController {
     calculateSpeed = async (req, res) => {
         try {
             const { id } = req.params;
-            const { pulse_count, time_interval } = req.body; // time_interval em segundos
+            const { pulse_count, time_interval } = req.body;
             
             const bike = await this.service.getOne(id);
             if (!bike) {
@@ -145,37 +168,6 @@ export class BikeController {
             
             const speedData = this.service.calculateSpeed(bike, pulse_count, time_interval);
             res.json(speedData);
-        } catch (error) {
-            res.status(500).json({ error: error.message });
-        }
-    };
-
-    // 👆 SEU CÓDIGO ORIGINAL (com pequenos ajustes) 👆
-
-    // 👇 MÉTODOS NOVOS QUE PRECISAM SER ADICIONADOS 👇
-
-    // Buscar bikes do usuário logado
-    getUserBikes = async (req, res) => {
-        try {
-            const userId = req.userId; // Do middleware de autenticação
-            const bikes = await this.service.getByUserId(userId);
-            res.json(bikes);
-        } catch (error) {
-            res.status(500).json({ error: error.message });
-        }
-    };
-
-    // Buscar bike por id_bike (para o IoT)
-    getByIdBike = async (req, res) => {
-        try {
-            const { id_bike } = req.params;
-            const bike = await this.service.getByIdBike(id_bike);
-            
-            if (!bike) {
-                return res.status(404).json({ error: 'Bike not found' });
-            }
-            
-            res.json(bike);
         } catch (error) {
             res.status(500).json({ error: error.message });
         }
