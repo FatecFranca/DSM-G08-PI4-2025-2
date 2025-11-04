@@ -7,7 +7,7 @@ const service = new BikeService(repository);
 export class BikeController {
     constructor(service) {
         this.service = service;
-        
+
         // 🔥 GARANTIR BINDING DOS MÉTODOS
         this.getAll = this.getAll.bind(this);
         this.getOne = this.getOne.bind(this);
@@ -35,11 +35,11 @@ export class BikeController {
         try {
             const { id } = req.params;
             const bike = await this.service.getOne(id);
-            
+
             if (!bike) {
                 return res.status(404).json({ error: 'Bike not found' });
             }
-            
+
             res.json(bike);
         } catch (error) {
             res.status(500).json({ error: error.message });
@@ -49,8 +49,9 @@ export class BikeController {
     create = async (req, res) => {
         try {
             const { id_bike, name, circunferencia_m, description } = req.body;
-            const user_id = req.userId;
-
+            const user = req.user;
+            const user_id = user.user_id;
+            
             const newBike = await this.service.create({
                 id_bike,
                 name: name || 'Minha Bike',
@@ -69,11 +70,11 @@ export class BikeController {
             const { id } = req.params;
             const bikeData = req.body;
             const updatedBike = await this.service.update(id, bikeData);
-            
+
             if (!updatedBike) {
                 return res.status(404).json({ error: 'Bike not found' });
             }
-            
+
             res.json(updatedBike);
         } catch (error) {
             res.status(500).json({ error: error.message });
@@ -84,11 +85,11 @@ export class BikeController {
         try {
             const { id } = req.params;
             const success = await this.service.delete(id);
-            
+
             if (!success) {
                 return res.status(404).json({ error: 'Bike not found' });
             }
-            
+
             res.status(204).send();
         } catch (error) {
             res.status(500).json({ error: error.message });
@@ -111,11 +112,11 @@ export class BikeController {
         try {
             const { id_bike } = req.params;
             const bike = await this.service.getByIdBike(id_bike);
-            
+
             if (!bike) {
                 return res.status(404).json({ error: 'Bike not found' });
             }
-            
+
             res.json(bike);
         } catch (error) {
             res.status(500).json({ error: error.message });
@@ -127,13 +128,13 @@ export class BikeController {
         try {
             const { id } = req.params;
             const { status } = req.body;
-            
+
             const success = await this.service.updateStatus(id, status);
-            
+
             if (!success) {
                 return res.status(404).json({ error: 'Bike not found' });
             }
-            
+
             res.json({ message: 'Status atualizado', bikeId: id, status });
         } catch (error) {
             res.status(500).json({ error: error.message });
@@ -144,11 +145,11 @@ export class BikeController {
         try {
             const { id } = req.params;
             const success = await this.service.updateLastSeen(id);
-            
+
             if (!success) {
                 return res.status(404).json({ error: 'Bike not found' });
             }
-            
+
             res.json({ message: 'Last seen updated', bikeId: id });
         } catch (error) {
             res.status(500).json({ error: error.message });
@@ -160,12 +161,12 @@ export class BikeController {
         try {
             const { id } = req.params;
             const { pulse_count, time_interval } = req.body;
-            
+
             const bike = await this.service.getOne(id);
             if (!bike) {
                 return res.status(404).json({ error: 'Bike not found' });
             }
-            
+
             const speedData = this.service.calculateSpeed(bike, pulse_count, time_interval);
             res.json(speedData);
         } catch (error) {

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import bikeRoutes from './bike/bike.routes.js';
 import readingsRoutes from './readings/readings.routes.js';
 import authRoutes from './auth.routes.js';
+import runsRoutes from './runs/runs.routes.js'; // <- novo
 //import iotRoutes from './iot/iot.routes.js';
 import pool from '../config/config.js'; // 👈 IMPORTE O POOL
 
@@ -69,6 +70,7 @@ router.get('/health/db', async (req, res) => {
 router.use('/auth', authRoutes);
 router.use('/bike', bikeRoutes);
 router.use('/readings', readingsRoutes);
+router.use('/runs', runsRoutes);
 //router.use('/iot', iotRoutes);
 
 export default router;

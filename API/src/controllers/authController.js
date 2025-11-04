@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import pool from '../config/config.js';
+import crypto from 'crypto';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'seu_jwt_secreto_aqui';
 
@@ -132,6 +133,34 @@ export class AuthController {
         } catch (error) {
             console.error('Erro no logout:', error);
             res.status(500).json({ error: 'Erro interno do servidor' });
+        }
+    }
+
+    static async getIotToken(req, res) {
+        try {
+            const userId = req.user.user_id;
+            const [rows] = await pool.query('SELECT iot_token, iot_token_created_at FROM Users WHERE id = ?', [userId]);
+            if (!rows.length) return res.status(404).json({ error: 'Usuário não encontrado' });
+            return res.json({ iot_token: rows[0].iot_token, created_at: rows[0].iot_token_created_at });
+        } catch (err) {
+            console.error('getIotToken error:', err);
+            return res.status(500).json({ error: 'Erro ao buscar iot_token' });
+        }
+    }
+
+    // Gera um novo iot_token (substitui o existente)
+    static async generateIotToken(req, res) {
+        try {
+            const userId = req.user.user_id;
+            const token = `user_${userId}_${crypto.randomBytes(12).toString('hex')}`;
+            const now = new Date();
+
+            await pool.query('UPDATE Users SET iot_token = ?, iot_token_created_at = ? WHERE id = ?', [token, now, userId]);
+
+            return res.json({ iot_token: token, created_at: now });
+        } catch (err) {
+            console.error('generateIotToken error:', err);
+            return res.status(500).json({ error: 'Erro ao gerar iot_token' });
         }
     }
 }
