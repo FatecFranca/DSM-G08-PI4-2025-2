@@ -9,7 +9,7 @@ O projeto foi desenvolvido pelos integrantes: Gabriel Andrade Aleixo, Uriel Mont
 
 ## 📁 Estrutura do Repositório
 
-```bash
+```
 DSM-G08-PI4-2025-2/
 │
 ├── API/                  # Backend em Node.js (Express)
@@ -30,6 +30,7 @@ DSM-G08-PI4-2025-2/
 │
 ├── README.md             # Documentação principal do projeto
 └── .gitignore
+```
 
 
 
