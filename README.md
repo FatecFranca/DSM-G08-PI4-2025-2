@@ -9,4 +9,27 @@ O projeto foi desenvolvido pelos integrantes: Gabriel Andrade Aleixo, Uriel Mont
 
 ## 📁 Estrutura do Repositório
 
+```bash
+DSM-G08-PI4-2025-2/
+│
+├── API/                  # Backend em Node.js (Express)
+│   ├── src/
+│   │   ├── controllers/  # Lógica de controle das rotas
+│   │   ├── models/       # Modelos e conexão com o banco
+│   │   ├── routes/       # Rotas da aplicação
+│   │   └── server.js     # Ponto inicial do servidor
+│   ├── package.json
+│   └── .env.example      # Modelo de variáveis de ambiente
+│
+├── Mobile/               # Aplicação Mobile (React Native / Expo)
+│   ├── assets/           # Imagens e ícones
+│   ├── src/              # Componentes, telas e serviços
+│   ├── App.js
+│   ├── package.json
+│   └── app.json
+│
+├── README.md             # Documentação principal do projeto
+└── .gitignore
+
+
 
