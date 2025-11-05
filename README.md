@@ -33,4 +33,50 @@ DSM-G08-PI4-2025-2/
 ```
 
 
+---
+
+## ⚙️ Tecnologias Utilizadas
+
+### 🖥️ Back-End (API)
+- Node.js  
+- Express  
+- MongoDB / SQL / Firebase  
+- JWT (autenticação)  
+- Dotenv  
+- Nodemon  
+
+### 📱 Mobile
+- React Native (via Expo)  
+- Axios  
+- React Navigation  
+- Async Storage  
+- Styled Components  
+
+### 🌐 Outras Ferramentas
+- Git / GitHub  
+- Postman / Insomnia  
+- Expo Go  
+- Render / Railway / Vercel (para deploy da API)
+
+---
+
+## 🚀 Como Rodar o Projeto
+
+### 🔧 1. Clonar o repositório
+```bash
+git clone https://github.com/FatecFranca/DSM-G08-PI4-2025-2.git
+cd DSM-G08-PI4-2025-2
+
+```
+
+##🖥️ 2. Configurar e executar a API
+```
+cd API
+npm install
+
+```
+
+
+
+
 
