@@ -1,14 +1,13 @@
 import { Router } from 'express';
+import authRoutes from './auth.routes.js';
 import bikeRoutes from './bike/bike.routes.js';
 import readingsRoutes from './readings/readings.routes.js';
-import authRoutes from './auth.routes.js';
-import runsRoutes from './runs/runs.routes.js'; // <- novo
-//import iotRoutes from './iot/iot.routes.js';
-import pool from '../config/config.js'; // 👈 IMPORTE O POOL
+import runsRoutes from './runs/runs.routes.js';
+import estatisticasRoutes from './estatisticas.routes.js'; // 👈 NOVA ROTA
+import pool from '../config/config.js';
 
 const router = Router();
 
-// 🔥 ROTA HEALTH COMPLETA
 router.get('/health', async (req, res) => {
     try {
         const healthCheck = {
@@ -19,7 +18,6 @@ router.get('/health', async (req, res) => {
             database: 'checking'
         };
 
-        // Verificar conexão com o banco
         try {
             const [rows] = await pool.query('SELECT 1 as db_status');
             healthCheck.database = 'connected';
@@ -39,7 +37,6 @@ router.get('/health', async (req, res) => {
     }
 });
 
-// 🔥 ROTA HEALTH SIMPLES (para IoT)
 router.get('/health/simple', (req, res) => {
     res.status(200).json({ 
         status: 'ok', 
@@ -48,7 +45,6 @@ router.get('/health/simple', (req, res) => {
     });
 });
 
-// 🔥 ROTA HEALTH DO BANCO (só verifica database)
 router.get('/health/db', async (req, res) => {
     try {
         const [rows] = await pool.query('SELECT 1 as healthy, NOW() as db_time');
@@ -66,11 +62,10 @@ router.get('/health/db', async (req, res) => {
     }
 });
 
-// Suas rotas normais
 router.use('/auth', authRoutes);
-router.use('/bike', bikeRoutes);
+router.use('/bikes', bikeRoutes);
 router.use('/readings', readingsRoutes);
 router.use('/runs', runsRoutes);
-//router.use('/iot', iotRoutes);
+router.use('/estatisticas', estatisticasRoutes);
 
 export default router;
