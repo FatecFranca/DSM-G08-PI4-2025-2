@@ -3,6 +3,19 @@ import dotenv from 'dotenv';
 import app from './app.js';
 import { Server as IOServer } from 'socket.io';
 
+// Adicione no início do server.js
+const isProduction = process.env.NODE_ENV === 'production';
+
+// Atualize a configuração do CORS para produção
+if (isProduction) {
+    app.use(cors({
+        origin: ['http://localhost:8080', 'https://localhost:8080'],
+        credentials: true
+    }));
+} else {
+    app.use(cors());
+}
+
 dotenv.config();
 const PORT = process.env.PORT || 3000;
 const IP = process.env.IP || '0.0.0.0'

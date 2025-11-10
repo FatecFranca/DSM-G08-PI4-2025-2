@@ -1,0 +1,396 @@
+openapi: 3.0.0
+info:
+  title: Bike IoT API
+  version: 1.0.0
+  description: API de telemetria de bicicletas com ESP32 e sensor Hall. Mede velocidade, distância e envia dados em tempo real via WebSocket.
+  contact:
+    email: dev-team@example.com
+  termsOfService: ""
+servers:
+  -
+    url: "http://192.168.24.13:3000/v1"
+    description: Servidor local / rede
+tags:
+  -
+    name: Readings
+    description: Leituras do sensor Hall
+  -
+    name: Bikes
+    description: Gerenciamento de bicicletas
+  -
+    name: Auth
+    description: Autenticação e perfil
+  -
+    name: Realtime
+    description: WebSocket / eventos em tempo real
+paths:
+  /readings:
+    post:
+      tags:
+        - Readings
+      summary: Envia leituras do sensor Hall
+      security:
+        -
+          IoTToken:
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: #/components/schemas/ReadingInput
+            example:
+              -
+                bike_uuid: bike_001
+                delta_us: 500000
+                ts: "2024-01-16T10:00:00.000Z"
+      responses:
+        201:
+          description: Dados inseridos com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: #/components/schemas/ReadingResponse
+              example:
+                inserted: 1
+                user_id: 1
+                user: teste@email.com
+        401:
+          description: Token inválido ou não fornecido
+        429:
+          description: Rate limit excedido
+        500:
+          description: Erro interno do servidor
+  /bikes:
+    get:
+      tags:
+        - Bikes
+      summary: Lista todas as bicicletas (admin)
+      security:
+        -
+          BearerAuth:
+
+      responses:
+        200:
+          description: Lista de bikes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: #/components/schemas/Bike
+              example:
+                -
+                  id: 1
+                  id_bike: bike_001
+                  name: Minha Bike Urbana
+                  circunferencia_m: 2.1
+                  user_id: 1
+                  status: offline
+                  last_seen: "2024-01-16T10:00:00.000Z"
+        401:
+          description: Não autorizado
+        500:
+          description: Erro interno
+    post:
+      tags:
+        - Bikes
+      summary: Cadastra nova bicicleta
+      security:
+        -
+          BearerAuth:
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: #/components/schemas/BikeInput
+            example:
+              id_bike: bike_004
+              name: Nova Bike
+              circunferencia_m: 2.1
+              description: Minha nova bicicleta
+      responses:
+        201:
+          description: Bike criada
+        400:
+          description: Requisição inválida
+        401:
+          description: Não autorizado
+  /bikes/my-bikes:
+    get:
+      tags:
+        - Bikes
+      summary: Lista bicicletas do usuário logado
+      security:
+        -
+          BearerAuth:
+
+      responses:
+        200:
+          description: Bikes do usuário
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: #/components/schemas/Bike
+        401:
+          description: Não autorizado
+  /bikes/device/{id_bike}:
+    get:
+      tags:
+        - Bikes
+      summary: Busca bike por UUID (para IoT)
+      parameters:
+        -
+          name: id_bike
+          in: path
+          required: true
+          schema:
+            type: string
+          example: bike_001
+      security:
+        -
+          IoTToken:
+
+      responses:
+        200:
+          description: Bike encontrada
+          content:
+            application/json:
+              schema:
+                $ref: #/components/schemas/Bike
+        404:
+          description: Bike não encontrada
+        401:
+          description: Token inválido
+  /auth/register:
+    post:
+      tags:
+        - Auth
+      summary: Registra novo usuário
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: #/components/schemas/RegisterInput
+            example:
+              email: novo@email.com
+              password: senha123
+              name: Novo Usuário
+      responses:
+        201:
+          description: Usuário criado
+          content:
+            application/json:
+              schema:
+                $ref: #/components/schemas/AuthResponse
+              example:
+                user:
+                  id: 3
+                  email: novo@email.com
+                  name: Novo Usuário
+                token: jwt_token_aqui
+        400:
+          description: Dados inválidos
+  /auth/login:
+    post:
+      tags:
+        - Auth
+      summary: Login de usuário
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: #/components/schemas/LoginInput
+            example:
+              email: teste@email.com
+              password: senha123
+      responses:
+        200:
+          description: Login bem-sucedido
+          content:
+            application/json:
+              schema:
+                $ref: #/components/schemas/AuthResponse
+              example:
+                user:
+                  id: 1
+                  email: teste@email.com
+                  name: João Silva
+                token: jwt_token_aqui
+        401:
+          description: Credenciais inválidas
+  /auth/profile:
+    get:
+      tags:
+        - Auth
+      summary: Obtém perfil do usuário logado
+      security:
+        -
+          BearerAuth:
+
+      responses:
+        200:
+          description: Perfil do usuário
+          content:
+            application/json:
+              schema:
+                $ref: #/components/schemas/User
+              example:
+                id: 1
+                email: teste@email.com
+                name: João Silva
+                iot_token: user_1_abc123def456
+                created_at: "2024-01-16T10:00:00.000Z"
+        401:
+          description: Não autorizado
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    IoTToken:
+      type: apiKey
+      in: header
+      name: x-iot-token
+  schemas:
+    ReadingInput:
+      type: object
+      required:
+        - bike_uuid
+        - delta_us
+        - ts
+      properties:
+        bike_uuid:
+          type: string
+          description: UUID/ID da bike
+        delta_us:
+          type: integer
+          description: Tempo entre pulsos em microssegundos
+        ts:
+          type: string
+          format: date-time
+          description: Timestamp em UTC
+    ReadingResponse:
+      type: object
+      properties:
+        inserted:
+          type: integer
+        user_id:
+          type: integer
+        user:
+          type: string
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        name:
+          type: string
+        iot_token:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    Bike:
+      type: object
+      properties:
+        id:
+          type: integer
+        id_bike:
+          type: string
+        name:
+          type: string
+        circunferencia_m:
+          type: number
+        user_id:
+          type: integer
+        description:
+          type: string
+        status:
+          type: string
+          enum:
+            - online
+            - offline
+        last_seen:
+          type: string
+          format: date-time
+    BikeInput:
+      type: object
+      required:
+        - id_bike
+        - name
+        - circunferencia_m
+      properties:
+        id_bike:
+          type: string
+        name:
+          type: string
+        circunferencia_m:
+          type: number
+        description:
+          type: string
+    RegisterInput:
+      type: object
+      required:
+        - email
+        - password
+        - name
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          description: Senha em texto plano (transmitir via HTTPS)
+        name:
+          type: string
+    LoginInput:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+    AuthResponse:
+      type: object
+      properties:
+        user:
+          $ref: #/components/schemas/User
+        token:
+          type: string
+    Run:
+      type: object
+      properties:
+        id:
+          type: integer
+        id_run:
+          type: string
+        user_id:
+          type: integer
+        bike_id:
+          type: integer
+        name:
+          type: string
+        status:
+          type: string
+        started_at:
+          type: string
+          format: date-time
+        ended_at:
+          type: string
+          format: date-time
