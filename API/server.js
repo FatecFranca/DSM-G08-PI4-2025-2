@@ -1,6 +1,7 @@
 import http from 'http';
 import dotenv from 'dotenv';
 import app from './app.js';
+import cors from 'cors';
 import { Server as IOServer } from 'socket.io';
 
 // Adicione no início do server.js
