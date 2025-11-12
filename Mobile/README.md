@@ -1,19 +1,16 @@
-# Mobile DSM-G08-PI
+# PI Mobile — Node 20 + Expo 51 pronto
 
-Aplicativo mobile feito em **React Native com Expo**.  
-Consome a API presente na pasta `API/` do mesmo projeto.
-
-## Como rodar:
-1. Vá até a pasta Mobile:
-   ```bash
-   cd Mobile
-   ```
-2. Instale as dependências:
+## Como rodar
+1. Garanta que sua API está rodando em `http://192.168.0.4:3000` (ajuste em `src/api/api.js` se precisar).
+2. Dentro desta pasta, rode:
    ```bash
    npm install
-   ```
-3. Execute com Expo:
-   ```bash
    npx expo start
    ```
-4. Escaneie o QR Code com o **Expo Go** no celular.
+3. Abra no celular com o app Expo Go (mesmo Wi‑Fi do PC).
+
+## Sobre
+- Sem `bottom-tabs` e sem `reanimated` (evita conflitos).
+- Navegação com `@react-navigation/native-stack`.
+- Telas: Login, Cadastro, Home, Estatísticas (gráfico).
+- Proteção por token (AsyncStorage + Authorization: Bearer).
