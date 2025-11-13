@@ -1,36 +1,94 @@
-import React, {useEffect, useState} from 'react';
-import {View,Text,TouchableOpacity,StyleSheet,ActivityIndicator} from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import api from '../api/api';
-export default function HomeScreen({navigation}){
-  const [loading,setLoading]=useState(true);
-  const [profile,setProfile]=useState(null);
-  useEffect(()=>{
-    const load = async()=>{
-      try{
-        const res = await api.get('/v1/auth/profile');
-        setProfile(res.data?.data || res.data || null);
-      }catch(e){}
-      setLoading(false);
-    };
-    load();
-  },[]);
-  const logout=async()=>{
-    await AsyncStorage.removeItem('token');
-    navigation.reset({index:0,routes:[{name:'Login'}]});
-  };
-  if(loading) return <View style={{flex:1,justifyContent:'center',alignItems:'center'}}><ActivityIndicator size="large"/></View>;
+import React from "react";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import colors from "../styles/colors";
+
+export default function HomeScreen({ navigation, route }) {
+  const { username } = route.params;
+
   return (
-    <View style={s.container}>
-      <Text style={s.title}>Bem-vindo{profile?.name? ' ' + profile.name : ''}</Text>
-      <TouchableOpacity style={s.btn} onPress={()=>navigation.navigate('Stats')}><Text style={s.btnText}>Estatísticas</Text></TouchableOpacity>
-      <TouchableOpacity style={[s.btn,{backgroundColor:'#777'}]} onPress={logout}><Text style={s.btnText}>Sair</Text></TouchableOpacity>
+    <View style={styles.container}>
+      <Text style={styles.title}>Olá, {username} 👋</Text>
+      <Text style={styles.subtitle}>O que deseja fazer hoje?</Text>
+
+      <View style={styles.card}>
+        <TouchableOpacity
+          style={styles.button}
+          onPress={() => navigation.navigate("KM")}
+        >
+          <Text style={styles.buttonText}>Ver KM percorridos</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.button}
+          onPress={() => navigation.navigate("Stats")}
+        >
+          <Text style={styles.buttonText}>Ver Estatísticas</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.logout}
+          onPress={() => navigation.replace("Login")}
+        >
+          <Text style={styles.logoutText}>Sair</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
-const s=StyleSheet.create({
-  container:{flex:1,justifyContent:'center',alignItems:'center',padding:20,backgroundColor:'#fff'},
-  title:{fontSize:28,marginBottom:20,color:'#b30000'},
-  btn:{backgroundColor:'#b30000',padding:12,borderRadius:8,alignItems:'center',width:'70%',marginBottom:10},
-  btnText:{color:'#fff',fontWeight:'700'}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background[50],
+    paddingHorizontal: 25,
+    paddingTop: 80,
+  },
+
+  title: {
+    fontSize: 32,
+    color: colors.text[900],
+    fontWeight: "bold",
+  },
+
+  subtitle: {
+    fontSize: 16,
+    color: colors.text[700],
+    marginTop: 5,
+    marginBottom: 30,
+  },
+
+  card: {
+    backgroundColor: colors.background[100],
+    padding: 25,
+    borderRadius: 20,
+    elevation: 6,
+    gap: 15,
+  },
+
+  button: {
+    backgroundColor: colors.primary[500],
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+
+  buttonText: {
+    color: colors.text[50],
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+
+  logout: {
+    marginTop: 10,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: "center",
+    backgroundColor: colors.background[200],
+  },
+
+  logoutText: {
+    color: colors.text[800],
+    fontSize: 16,
+    fontWeight: "bold",
+  },
 });
