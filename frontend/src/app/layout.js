@@ -1,6 +1,9 @@
 import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
-
+import "../styles/globals.css";
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
+import { AppSidebar } from "@/components/components/sidebar/app-sidebar"
+import { Separator } from "@/components/ui/separator";
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbPage, BreadcrumbList, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -22,7 +25,13 @@ export default function RootLayout({ children }) {
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        <SidebarProvider className="p-8">
+          <AppSidebar />
+          <SidebarTrigger className="-ml-1" />
+          <div className="w-full">
+            {children}
+          </div>
+        </SidebarProvider>
       </body>
     </html>
   );
