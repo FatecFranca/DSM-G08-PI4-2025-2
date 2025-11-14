@@ -7,21 +7,16 @@ info:
     email: dev-team@example.com
   termsOfService: ""
 servers:
-  -
-    url: "http://192.168.24.13:3000/v1"
+  - url: "http://192.168.24.13:3000/v1"
     description: Servidor local / rede
 tags:
-  -
-    name: Readings
+  - name: Readings
     description: Leituras do sensor Hall
-  -
-    name: Bikes
+  - name: Bikes
     description: Gerenciamento de bicicletas
-  -
-    name: Auth
+  - name: Auth
     description: Autenticação e perfil
-  -
-    name: Realtime
+  - name: Realtime
     description: WebSocket / eventos em tempo real
 paths:
   /readings:
@@ -30,9 +25,7 @@ paths:
         - Readings
       summary: Envia leituras do sensor Hall
       security:
-        -
-          IoTToken:
-
+        - IoTToken: []
       requestBody:
         required: true
         content:
@@ -40,10 +33,9 @@ paths:
             schema:
               type: array
               items:
-                $ref: #/components/schemas/ReadingInput
+                $ref: '#/components/schemas/ReadingInput'
             example:
-              -
-                bike_uuid: bike_001
+              - bike_uuid: bike_001
                 delta_us: 500000
                 ts: "2024-01-16T10:00:00.000Z"
       responses:
@@ -52,7 +44,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: #/components/schemas/ReadingResponse
+                $ref: '#/components/schemas/ReadingResponse'
               example:
                 inserted: 1
                 user_id: 1
@@ -69,9 +61,7 @@ paths:
         - Bikes
       summary: Lista todas as bicicletas (admin)
       security:
-        -
-          BearerAuth:
-
+        - BearerAuth: []
       responses:
         200:
           description: Lista de bikes
@@ -80,10 +70,9 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: #/components/schemas/Bike
+                  $ref: '#/components/schemas/Bike'
               example:
-                -
-                  id: 1
+                - id: 1
                   id_bike: bike_001
                   name: Minha Bike Urbana
                   circunferencia_m: 2.1
@@ -99,15 +88,13 @@ paths:
         - Bikes
       summary: Cadastra nova bicicleta
       security:
-        -
-          BearerAuth:
-
+        - BearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: #/components/schemas/BikeInput
+              $ref: '#/components/schemas/BikeInput'
             example:
               id_bike: bike_004
               name: Nova Bike
@@ -126,9 +113,7 @@ paths:
         - Bikes
       summary: Lista bicicletas do usuário logado
       security:
-        -
-          BearerAuth:
-
+        - BearerAuth: []
       responses:
         200:
           description: Bikes do usuário
@@ -137,7 +122,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: #/components/schemas/Bike
+                  $ref: '#/components/schemas/Bike'
         401:
           description: Não autorizado
   /bikes/device/{id_bike}:
@@ -146,24 +131,21 @@ paths:
         - Bikes
       summary: Busca bike por UUID (para IoT)
       parameters:
-        -
-          name: id_bike
+        - name: id_bike
           in: path
           required: true
           schema:
             type: string
           example: bike_001
       security:
-        -
-          IoTToken:
-
+        - IoTToken: []
       responses:
         200:
           description: Bike encontrada
           content:
             application/json:
               schema:
-                $ref: #/components/schemas/Bike
+                $ref: '#/components/schemas/Bike'
         404:
           description: Bike não encontrada
         401:
@@ -178,7 +160,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: #/components/schemas/RegisterInput
+              $ref: '#/components/schemas/RegisterInput'
             example:
               email: novo@email.com
               password: senha123
@@ -189,7 +171,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: #/components/schemas/AuthResponse
+                $ref: '#/components/schemas/AuthResponse'
               example:
                 user:
                   id: 3
@@ -208,7 +190,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: #/components/schemas/LoginInput
+              $ref: '#/components/schemas/LoginInput'
             example:
               email: teste@email.com
               password: senha123
@@ -218,7 +200,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: #/components/schemas/AuthResponse
+                $ref: '#/components/schemas/AuthResponse'
               example:
                 user:
                   id: 1
@@ -233,16 +215,14 @@ paths:
         - Auth
       summary: Obtém perfil do usuário logado
       security:
-        -
-          BearerAuth:
-
+        - BearerAuth: []
       responses:
         200:
           description: Perfil do usuário
           content:
             application/json:
               schema:
-                $ref: #/components/schemas/User
+                $ref: '#/components/schemas/User'
               example:
                 id: 1
                 email: teste@email.com
@@ -370,7 +350,7 @@ components:
       type: object
       properties:
         user:
-          $ref: #/components/schemas/User
+          $ref: '#/components/schemas/User'
         token:
           type: string
     Run:

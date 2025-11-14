@@ -35,7 +35,7 @@ io.on('connection', (socket) => {
 });
 
 // ⚠️ LINHA CORRIGIDA - escutar no IP específico
-server.listen(PORT, () => {
+server.listen(PORT, IP, () => {
   console.log(`=================================`);
   console.log(`🚴 BIKE IOT API - CONFIGURAÇÃO CORRIGIDA`);
   console.log(`=================================`);
