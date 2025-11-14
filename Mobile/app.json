@@ -1,0 +1,9 @@
+{
+  "expo": {
+    "name": "PI Mobile (Node20/Expo51)",
+    "slug": "pi-mobile-node20-expo51",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "sdkVersion": "51.0.0"
+  }
+}
