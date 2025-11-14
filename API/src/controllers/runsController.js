@@ -14,6 +14,32 @@ export default class RunsController {
         }
     }
 
+    static async getAll(req, res) {
+        try {
+            const user = req.user;
+            if (!user || !user.user_id) {
+                return res.status(401).json({ error: 'Usuário não autenticado' });
+            }
+
+            // query params opcionais: limit, offset, status, bike_uuid
+            const { limit = 100, offset = 0, status, bike_uuid } = req.query;
+
+            const runs = await RunsService.getAllRuns({
+                user,
+                limit: Number(limit),
+                offset: Number(offset),
+                status: status || null,
+                bike_uuid: bike_uuid || null
+            });
+
+            return res.json(runs);
+        } catch (err) {
+            console.error('RunsController.getAll', err);
+            return res.status(500).json({ error: 'Erro ao listar runs', message: err.message });
+        }
+    }
+
+
     static async metrics(req, res) {
         try {
             const user = req.user;

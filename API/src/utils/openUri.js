@@ -1,27 +1,37 @@
-import { exec } from 'child_process';
+export function parseKV(content) {
+    if (!content || typeof content !== 'string') return {};
 
-export function openUri(uri) {
-    return new Promise((resolve, reject) => {
-        if (!uri || typeof uri !== 'string') return reject(new Error('URI obrigatório'));
+    try {
+        const tokens = content.replace(/\r\n/g, '\n');
+        const regex = /"([^\\"]*)"|{|}/g;
+        let m;
+        const stack = [{}];
+        let key = null;
 
-        const platform = process.platform;
-        // proteger aspas internas
-        const safe = uri.replace(/"/g, '\\"');
-
-        let cmd;
-        if (platform === 'win32') {
-            // usa cmd /c start "" "uri" — start é built-in do cmd
-            cmd = `cmd /c start "" "${safe}"`;
-        } else if (platform === 'darwin') {
-            cmd = `open "${safe}"`;
-        } else {
-            // linux/unix
-            cmd = `xdg-open "${safe}"`;
+        while ((m = regex.exec(tokens)) !== null) {
+            const t = m[0];
+            if (t === '{') {
+                const obj = {};
+                if (key !== null) {
+                    stack[stack.length - 1][key] = obj;
+                    key = null;
+                }
+                stack.push(obj);
+            } else if (t === '}') {
+                stack.pop();
+            } else {
+                const val = m[1];
+                if (key === null) {
+                    key = val;
+                } else {
+                    stack[stack.length - 1][key] = val;
+                    key = null;
+                }
+            }
         }
 
-        exec(cmd, (err /*, stdout, stderr */) => {
-            if (err) return reject(err);
-            resolve(true);
-        });
-    });
+        return stack[0] || {};
+    } catch (err) {
+        return {};
+    }
 }

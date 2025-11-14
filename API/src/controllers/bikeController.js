@@ -51,7 +51,7 @@ export class BikeController {
             const { id_bike, name, circunferencia_m, description } = req.body;
             const user = req.user;
             const user_id = user.user_id;
-            
+
             const newBike = await this.service.create({
                 id_bike,
                 name: name || 'Minha Bike',
@@ -99,11 +99,17 @@ export class BikeController {
     // Buscar bikes do usuário logado
     getUserBikes = async (req, res) => {
         try {
-            const userId = req.userId;
+            // lê o user id de forma robusta
+            const userId = req.user?.user_id || req.user?.id || req.userId;
+            if (!userId) {
+                return res.status(401).json({ error: 'Usuário não autenticado' });
+            }
+
             const bikes = await this.service.getByUserId(userId);
-            res.json(bikes);
+            return res.json(bikes);
         } catch (error) {
-            res.status(500).json({ error: error.message });
+            console.error('getUserBikes error:', error);
+            return res.status(500).json({ error: error.message });
         }
     };
 

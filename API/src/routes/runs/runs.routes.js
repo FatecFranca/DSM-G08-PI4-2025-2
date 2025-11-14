@@ -1,9 +1,11 @@
 import { Router } from 'express';
 import RunsController from '../../controllers/runsController.js';
-import { authIotSimple } from '../../middlewares/authIot.js'; // se quiser mesma autenticação simplificada
-// você pode usar autenticação padrão também
+import { authIotSimple } from '../../middlewares/authIot.js';
 
 const router = Router();
+
+// listar runs (com paginação e filtros via query string)
+router.get('/', authIotSimple, RunsController.getAll);
 
 // criar nova run
 router.post('/', authIotSimple, RunsController.create);

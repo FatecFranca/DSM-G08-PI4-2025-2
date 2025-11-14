@@ -269,4 +269,58 @@ export class RunsService {
         await pool.query('UPDATE Run SET status = "completed", ended_at = NOW(), updated_at = NOW() WHERE id_run = ? AND user_id = ?', [id_run, user.user_id]);
         return { id_run };
     }
+
+    static async getAllRuns({ user, limit = 100, offset = 0, status = null, bike_uuid = null }) {
+        if (!user || !user.user_id) throw new Error('Usuário não autenticado');
+
+        // base query — selecionar informações úteis
+        let sql = `
+      SELECT
+        R.id_run,
+        R.id,
+        R.name,
+        R.status,
+        R.started_at,
+        R.ended_at,
+        R.updated_at,
+        R.user_id,
+        R.bike_id,
+        B.id_bike AS bike_uuid,
+        B.circunferencia_m
+      FROM Run R
+      JOIN Bike B ON R.bike_id = B.id
+      WHERE R.user_id = ?
+    `;
+        const params = [user.user_id];
+
+        if (status) {
+            sql += ' AND R.status = ?';
+            params.push(status);
+        }
+
+        if (bike_uuid) {
+            sql += ' AND B.id_bike = ?';
+            params.push(bike_uuid);
+        }
+
+        sql += ' ORDER BY R.started_at DESC LIMIT ? OFFSET ?';
+        params.push(Number(limit), Number(offset));
+
+        const [rows] = await pool.query(sql, params);
+
+        // map para formato mais amigável
+        return (rows || []).map(r => ({
+            id: r.id,
+            id_run: r.id_run,
+            name: r.name,
+            status: r.status,
+            started_at: r.started_at,
+            ended_at: r.ended_at,
+            updated_at: r.updated_at,
+            bike_id: r.bike_id,
+            bike_uuid: r.bike_uuid,
+            circunferencia_m: r.circunferencia_m
+        }));
+    }
+
 }
