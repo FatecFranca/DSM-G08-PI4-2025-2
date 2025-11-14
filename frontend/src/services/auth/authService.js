@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3000";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3000/v1/";
 
 async function requestJson(url, options = {}) {
     const res = await fetch(url, {
@@ -37,7 +37,7 @@ export async function login({ email, password }, options = {}) {
 
     const { persist = "local" } = options;
 
-    const url = `${API_BASE}/v1/auth/login`;
+    const url = `${API_BASE}auth/login`;
     const payload = await requestJson(url, {
         method: "POST",
         body: JSON.stringify({ email, password }),
