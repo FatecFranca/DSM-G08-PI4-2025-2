@@ -41,7 +41,7 @@ const data = {
             url: "#",
             items: [
                 { title: "Dashboard", url: "/runs" },
-                { title: "Gerenciamento", url: "/runs/config" },
+                { title: "Gerenciamento", url: "/runs/gerenciamento" },
             ],
         },
     ],
