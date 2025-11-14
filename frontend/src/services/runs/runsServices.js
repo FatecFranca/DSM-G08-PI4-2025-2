@@ -146,7 +146,6 @@ export async function getRunLast(id_run, token) {
     }
 }
 
-
 /** GET /runs/bike/:bike_uuid/live */
 export async function getLiveByBike(bike_uuid, token) {
     if (!token) {
