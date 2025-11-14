@@ -1,30 +1,36 @@
 import React,{useState} from 'react';
 import {View,Text,TextInput,TouchableOpacity,StyleSheet,Alert} from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../api/api';
-export default function LoginScreen({navigation}){
+import AsyncStorage from '@react-native-async-storage/async-storage';
+export default function SignupScreen({navigation}){
+  const [name,setName]=useState('');
   const [email,setEmail]=useState('');
   const [password,setPassword]=useState('');
-  const login=async()=>{
+  const signup=async()=>{
     try{
-      const res=await api.post('/v1/auth/login',{email,password});
+      const res=await api.post('/v1/auth/register',{name,email,password});
       const d = res.data || {};
       const token = d.token || d.accessToken || d.jwt || (d.data? d.data.token || d.data.accessToken : null);
-      if(!token) return Alert.alert('Erro','Resposta inválida do servidor (token ausente)');
-      await AsyncStorage.setItem('token',token);
-      navigation.reset({index:0,routes:[{name:'Home'}]});
+      if(token){
+        await AsyncStorage.setItem('token',token);
+        navigation.reset({index:0,routes:[{name:'Home'}]});
+      }else{
+        Alert.alert('Sucesso','Cadastro realizado, faça login.');
+        navigation.navigate('Login');
+      }
     }catch(e){
-      const msg = e.response?.data?.message || e.response?.data?.error || e.message || 'Erro';
+      const msg=e.response?.data?.message || e.response?.data?.error || e.message || 'Erro';
       Alert.alert('Erro',String(msg));
     }
   };
   return (
     <View style={s.container}>
-      <Text style={s.title}>Entrar</Text>
+      <Text style={s.title}>Cadastro</Text>
+      <TextInput placeholder="Nome" value={name} onChangeText={setName} style={s.input}/>
       <TextInput placeholder="Email" value={email} onChangeText={setEmail} style={s.input} autoCapitalize="none"/>
       <TextInput placeholder="Senha" value={password} onChangeText={setPassword} secureTextEntry style={s.input}/>
-      <TouchableOpacity style={s.btn} onPress={login}><Text style={s.btnText}>Entrar</Text></TouchableOpacity>
-      <TouchableOpacity onPress={()=>navigation.navigate('Signup')}><Text style={s.link}>Criar conta</Text></TouchableOpacity>
+      <TouchableOpacity style={s.btn} onPress={signup}><Text style={s.btnText}>Criar conta</Text></TouchableOpacity>
+      <TouchableOpacity onPress={()=>navigation.navigate('Login')}><Text style={s.link}>Já tenho conta</Text></TouchableOpacity>
     </View>
   );
 }
