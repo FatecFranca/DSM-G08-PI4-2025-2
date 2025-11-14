@@ -1,9 +1,0 @@
-{"speed_kmh":7.56,"rpm":60.00,"rpm_smooth":12.00}
-{"speed_kmh":10.08,"rpm":80.00,"rpm_smooth":25.60}
-{"speed_kmh":21.42,"rpm":170.00,"rpm_smooth":54.48}
-{"speed_kmh":28.98,"rpm":230.00,"rpm_smooth":89.58}
-{"speed_kmh":28.98,"rpm":230.00,"rpm_smooth":117.67}
-{"speed_kmh":33.89,"rpm":269.00,"rpm_smooth":147.93}
-{"speed_kmh":33.89,"rpm":269.00,"rpm_smooth":172.15}
-{"speed_kmh":7.56,"rpm":60.00,"rpm_smooth":149.72}
-{"speed_kmh":7.56,"rpm":60.00,"rpm_smooth":131.77}
