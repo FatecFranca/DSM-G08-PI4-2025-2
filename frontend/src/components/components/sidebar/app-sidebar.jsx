@@ -48,12 +48,6 @@ import {
 const data = {
     navMain: [
         {
-            title: "Dashboard",
-            url: "/dashboard",
-            icon: <BarChart3 className="h-4 w-4" />,
-            items: []
-        },
-        {
             title: "Bikes",
             url: "/bikes",
             icon: <Bike className="h-4 w-4" />,
