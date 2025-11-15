@@ -1,3 +1,4 @@
+// services/auth/authService.js
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3000/v1/";
 
 async function requestJson(url, options = {}) {
@@ -29,8 +30,41 @@ async function requestJson(url, options = {}) {
 }
 
 /**
- * login({ email, password }, { persist: 'local'|'session'|'none' })
- * Retorna payload do backend e persiste token se persist for definido.
+ * Register new user
+ */
+export async function register({ email, password, name }, options = {}) {
+    if (!email || !password || !name) throw new Error("Email, senha e nome são obrigatórios.");
+
+    const { persist = "local" } = options;
+
+    const url = `${API_BASE}auth/register`;
+    const payload = await requestJson(url, {
+        method: "POST",
+        body: JSON.stringify({ email, password, name }),
+    });
+
+    // extrair token de várias chaves possíveis
+    const token = payload?.token || payload?.accessToken || payload?.access_token || null;
+
+    try {
+        if (token) {
+            if (persist === "local") localStorage.setItem("auth_token", token);
+            else if (persist === "session") sessionStorage.setItem("auth_token", token);
+        }
+        if (payload?.user) {
+            const userJson = JSON.stringify(payload.user);
+            if (persist === "local") localStorage.setItem("auth_user", userJson);
+            else if (persist === "session") sessionStorage.setItem("auth_user", userJson);
+        }
+    } catch (e) {
+        // se storage não disponível (ex: bloqueado), ignore silenciosamente
+    }
+
+    return payload;
+}
+
+/**
+ * Login user
  */
 export async function login({ email, password }, options = {}) {
     if (!email || !password) throw new Error("Email e senha são obrigatórios.");
@@ -50,7 +84,6 @@ export async function login({ email, password }, options = {}) {
         if (token) {
             if (persist === "local") localStorage.setItem("auth_token", token);
             else if (persist === "session") sessionStorage.setItem("auth_token", token);
-            // else persist === 'none' -> não persiste
         }
         if (payload?.user) {
             const userJson = JSON.stringify(payload.user);
