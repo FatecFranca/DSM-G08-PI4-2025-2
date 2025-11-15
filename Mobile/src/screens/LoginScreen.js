@@ -1,37 +1,38 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Alert, Platform, Pressable } from 'react-native';
+import React, { useState, useContext } from 'react';
+import { View, Text, TextInput, StyleSheet, Alert, Pressable } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
+import { AuthContext } from '../context/AuthContext';
 import api from '../api/api';
 
 export default function LoginScreen() {
 
   const navigation = useNavigation();
+  const { setToken } = useContext(AuthContext);
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
   const login = async () => {
     try {
       const res = await api.post('/v1/auth/login', { email, password });
-      const d = res.data || {};
-      const token = d.token;
+      const token = res.data?.token;
 
       if (!token) {
         Alert.alert("Erro", "Token ausente na resposta");
         return;
       }
 
-      await AsyncStorage.setItem("token", token);
-      setToken(t);
+      await AsyncStorage.setItem('token', token);
+      setToken(token);
 
-     navigation.navigate("Home");
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "Home" }],
+      });
 
     } catch (e) {
-      const msg =
-        e.response?.data?.message ||
-        e.response?.data?.error ||
-        e.message ||
-        "Erro";
+      const msg = e.response?.data?.message || e.response?.data?.error || "Erro no login";
       Alert.alert("Erro", msg);
     }
   };
