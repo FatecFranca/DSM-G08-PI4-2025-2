@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  TextInput, 
-  StyleSheet, 
-  Alert, 
-  TouchableOpacity 
+import {
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  Alert,
+  TouchableOpacity
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -34,20 +34,20 @@ export default function SignupScreen() {
         password
       });
 
-      Alert.alert(
-        "Sucesso",
-        "Conta criada com sucesso!",
-        [
-          {
-            text: "OK",
-            onPress: () =>
-              navigation.reset({
-                index: 0,
-                routes: [{ name: "Login" }]
-              })
-          }
-        ]
-      );
+      // Alert.alert(
+      //   "Sucesso",
+      //   "Conta criada com sucesso!",
+      //   [
+      //     {
+      //       text: "OK",
+      //       onPress: () =>
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "Login" }]
+      })
+      //     }
+      //   ]
+      // );
 
     } catch (e) {
       Alert.alert("Erro", e.response?.data?.message || "Falha no cadastro");
