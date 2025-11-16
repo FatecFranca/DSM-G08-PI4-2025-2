@@ -1,15 +1,15 @@
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useContext, useState, useEffect } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
+import { AuthProvider, AuthContext } from './src/context/AuthContext';
 import LoginScreen from './src/screens/LoginScreen';
 import SignupScreen from './src/screens/SignupScreen';
 import HomeScreen from './src/screens/HomeScreen';
+import BikesScreen from './src/screens/BikesScreen';
+import RunsScreen from './src/screens/RunsScreen';
 import StatsScreen from './src/screens/StatsScreen';
-
-import { AuthProvider, AuthContext } from './src/context/AuthContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const Stack = createNativeStackNavigator();
 
@@ -18,17 +18,22 @@ function Routes() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadToken = async () => {
-      const savedToken = await AsyncStorage.getItem('token');
-      setToken(savedToken);
-      setLoading(false);
+    const load = async () => {
+      try {
+        const t = await AsyncStorage.getItem('token');
+        setToken(t);
+      } catch (e) {
+        setToken(null);
+      } finally {
+        setLoading(false);
+      }
     };
-    loadToken();
+    load();
   }, []);
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: "#fff" }}>
+      <View style={{flex:1,justifyContent:'center',alignItems:'center',backgroundColor:'#fff'}}>
         <ActivityIndicator size="large" color="#b30000" />
       </View>
     );
@@ -37,10 +42,11 @@ function Routes() {
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-
         {token ? (
           <>
             <Stack.Screen name="Home" component={HomeScreen} />
+            <Stack.Screen name="Bikes" component={BikesScreen} />
+            <Stack.Screen name="Runs" component={RunsScreen} />
             <Stack.Screen name="Stats" component={StatsScreen} />
           </>
         ) : (
@@ -49,7 +55,6 @@ function Routes() {
             <Stack.Screen name="Signup" component={SignupScreen} />
           </>
         )}
-
       </Stack.Navigator>
     </NavigationContainer>
   );

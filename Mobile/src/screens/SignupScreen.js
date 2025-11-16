@@ -1,45 +1,62 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Alert, Platform, Pressable } from 'react-native';
+import React, { useState, useContext } from 'react';
+import { View, Text, TextInput, StyleSheet, Alert, TouchableOpacity } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useNavigation } from '@react-navigation/native';
+import { AuthContext } from '../context/AuthContext';
 import api from '../api/api';
 
-export default function SignupScreen({ navigation }) {
+export default function SignupScreen() {
+  const navigation = useNavigation();
+  const { setToken } = useContext(AuthContext);
+
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const signup = async () => {
-    try {
-      const res = await api.post('/v1/auth/register', { name, email, password });
+  const register = async () => {
+    if (!name || !email || !password)
+      return Alert.alert("Erro", "Preencha todos os campos");
 
-      // Sucesso! Agora redireciona para Login
-      if (Platform.OS === 'web') {
-        alert('Cadastro realizado! Faça login.');
-      } else {
-        Alert.alert('Sucesso', 'Cadastro realizado! Faça login.');
+    try {
+      const res = await api.post('/v1/auth/register', {
+        name, email, password
+      });
+
+      const token = res.data?.token;
+
+      if (!token) {
+        Alert.alert("Erro", "Token ausente na resposta");
+        return;
       }
 
-      navigation.navigate("Login");
+      await AsyncStorage.setItem("token", token);
+      setToken(token);
+
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "Home" }],
+      });
 
     } catch (e) {
-      const msg =
-        e.response?.data?.message ||
-        e.response?.data?.error ||
-        e.message ||
-        'Erro';
-
-      if (Platform.OS === 'web') alert(msg);
-      else Alert.alert('Erro', msg);
+      Alert.alert("Erro", e.response?.data?.message || "Falha no cadastro");
     }
   };
 
   return (
     <View style={s.container}>
-      <Text style={s.title}>Cadastro</Text>
+      <Text style={s.title}>Criar conta</Text>
 
-      <TextInput placeholder="Nome" value={name} onChangeText={setName} style={s.input} />
+      <TextInput
+        placeholder="Nome"
+        placeholderTextColor="#aaa"
+        value={name}
+        onChangeText={setName}
+        style={s.input}
+      />
 
       <TextInput
         placeholder="Email"
+        placeholderTextColor="#aaa"
         value={email}
         onChangeText={setEmail}
         style={s.input}
@@ -48,28 +65,64 @@ export default function SignupScreen({ navigation }) {
 
       <TextInput
         placeholder="Senha"
+        placeholderTextColor="#aaa"
         value={password}
         onChangeText={setPassword}
         secureTextEntry
         style={s.input}
       />
 
-      <Pressable style={s.btn} onPress={signup}>
-        <Text style={s.btnText}>Criar conta</Text>
-      </Pressable>
+      <TouchableOpacity style={s.btn} onPress={register}>
+        <Text style={s.btnText}>Cadastrar</Text>
+      </TouchableOpacity>
 
-      <Pressable onPress={() => navigation.navigate("Login")}>
-        <Text style={s.link}>Já tenho conta</Text>
-      </Pressable>
+      <TouchableOpacity onPress={() => navigation.goBack()}>
+        <Text style={s.link}>Já tenho uma conta</Text>
+      </TouchableOpacity>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 20, backgroundColor: '#fff' },
-  title: { fontSize: 28, marginBottom: 20, color: '#b30000', textAlign: 'center' },
-  input: { borderWidth: 1, borderColor: '#ddd', padding: 10, borderRadius: 8, marginBottom: 12 },
-  btn: { backgroundColor: '#b30000', padding: 12, borderRadius: 8, alignItems: 'center', marginBottom: 10 },
-  btnText: { color: '#fff', fontWeight: '700' },
-  link: { color: '#b30000', textAlign: 'center' }
+  container: {
+    flex: 1,
+    padding: 28,
+    justifyContent: "center",
+    backgroundColor: "#fff"
+  },
+  title: {
+    fontSize: 30,
+    fontWeight: "700",
+    textAlign: "center",
+    marginBottom: 40,
+    color: "#b30000"
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    padding: 14,
+    borderRadius: 10,
+    marginBottom: 14,
+    fontSize: 16,
+    color: "#000"
+  },
+  btn: {
+    backgroundColor: "#b30000",
+    padding: 14,
+    borderRadius: 10,
+    alignItems: "center",
+    marginTop: 6
+  },
+  btnText: {
+    color: "#fff",
+    fontSize: 17,
+    fontWeight: "700"
+  },
+  link: {
+    color: "#b30000",
+    textAlign: "center",
+    marginTop: 16,
+    fontSize: 15,
+    fontWeight: "600"
+  }
 });

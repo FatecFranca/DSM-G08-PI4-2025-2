@@ -1,12 +1,11 @@
 import React, { useState, useContext } from 'react';
-import { View, Text, TextInput, StyleSheet, Alert, Pressable } from 'react-native';
+import { View, Text, TextInput, StyleSheet, Alert, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { AuthContext } from '../context/AuthContext';
 import api from '../api/api';
 
 export default function LoginScreen() {
-
   const navigation = useNavigation();
   const { setToken } = useContext(AuthContext);
 
@@ -23,7 +22,7 @@ export default function LoginScreen() {
         return;
       }
 
-      await AsyncStorage.setItem('token', token);
+      await AsyncStorage.setItem("token", token);
       setToken(token);
 
       navigation.reset({
@@ -32,8 +31,7 @@ export default function LoginScreen() {
       });
 
     } catch (e) {
-      const msg = e.response?.data?.message || e.response?.data?.error || "Erro no login";
-      Alert.alert("Erro", msg);
+      Alert.alert("Erro", e.response?.data?.message || "Falha no login");
     }
   };
 
@@ -43,6 +41,7 @@ export default function LoginScreen() {
 
       <TextInput
         placeholder="Email"
+        placeholderTextColor="#aaa"
         value={email}
         onChangeText={setEmail}
         style={s.input}
@@ -51,28 +50,64 @@ export default function LoginScreen() {
 
       <TextInput
         placeholder="Senha"
+        placeholderTextColor="#aaa"
         value={password}
         onChangeText={setPassword}
         secureTextEntry
         style={s.input}
       />
 
-      <Pressable style={s.btn} onPress={login}>
+      <TouchableOpacity style={s.btn} onPress={login}>
         <Text style={s.btnText}>Entrar</Text>
-      </Pressable>
+      </TouchableOpacity>
 
-      <Pressable onPress={() => navigation.navigate("Signup")}>
-        <Text style={s.link}>Criar conta</Text>
-      </Pressable>
+      <TouchableOpacity onPress={() => navigation.navigate("Signup")}>
+        <Text style={s.link}>Criar uma conta</Text>
+      </TouchableOpacity>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", padding: 20, backgroundColor: "#fff" },
-  title: { fontSize: 28, marginBottom: 20, color: "#b30000", textAlign: "center" },
-  input: { borderWidth: 1, borderColor: "#ddd", padding: 10, borderRadius: 8, marginBottom: 12 },
-  btn: { backgroundColor: "#b30000", padding: 12, borderRadius: 8, alignItems: "center", marginBottom: 10 },
-  btnText: { color: "#fff", fontWeight: "700" },
-  link: { color: "#b30000", textAlign: "center" },
+  container: {
+    flex: 1,
+    padding: 28,
+    justifyContent: "center",
+    backgroundColor: "#fff"
+  },
+  title: {
+    fontSize: 30,
+    fontWeight: "700",
+    textAlign: "center",
+    marginBottom: 40,
+    color: "#b30000"
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    padding: 14,
+    borderRadius: 10,
+    marginBottom: 14,
+    fontSize: 16,
+    color: "#000"
+  },
+  btn: {
+    backgroundColor: "#b30000",
+    padding: 14,
+    borderRadius: 10,
+    alignItems: "center",
+    marginTop: 6
+  },
+  btnText: {
+    color: "#fff",
+    fontSize: 17,
+    fontWeight: "700"
+  },
+  link: {
+    color: "#b30000",
+    textAlign: "center",
+    marginTop: 16,
+    fontSize: 15,
+    fontWeight: "600"
+  }
 });

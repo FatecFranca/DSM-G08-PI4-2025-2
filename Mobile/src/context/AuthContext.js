@@ -1,14 +1,28 @@
-import { createContext, useState } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import React, { createContext, useState, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(null);
 
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const t = await AsyncStorage.getItem('token');
+        setToken(t);
+      } catch (e) {
+        setToken(null);
+      }
+    };
+    load();
+  }, []);
+
   const logout = async () => {
-    await AsyncStorage.removeItem("token");
-    setToken(null); // <-- VOLTA PARA A TELA DE LOGIN AUTOMATICAMENTE
+    try {
+      await AsyncStorage.removeItem('token');
+    } catch (e) {}
+    setToken(null);
   };
 
   return (
