@@ -1,4 +1,6 @@
-import React, { useEffect, useState } from 'react';
+// RunsScreen — versão bonita + travamento completo + histórico corrigido
+
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,11 +12,10 @@ import {
   Alert
 } from 'react-native';
 import api from '../api/api';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import io from 'socket.io-client';
 
 export default function RunsScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
-
   const [bikes, setBikes] = useState([]);
   const [runs, setRuns] = useState([]);
   const [activeRun, setActiveRun] = useState(null);
@@ -22,200 +23,306 @@ export default function RunsScreen({ navigation }) {
   const [name, setName] = useState('');
   const [bikeId, setBikeId] = useState('');
 
-  // ---------------- CARREGA AS BIKES ----------------
+  const [liveSpeedByBike, setLiveSpeedByBike] = useState({});
+  const socketRef = useRef(null);
+
+  const SOCKET_URL = 'http://192.168.0.5:3000';
+
+  useEffect(() => {
+    (async () => {
+      await load();
+      setupSocket();
+    })();
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+    };
+  }, []);
+
+  // ============================================================
+  // SOCKET
+  // ============================================================
+  const setupSocket = () => {
+    try {
+      const socket = io(SOCKET_URL, { transports: ['websocket'] });
+      socketRef.current = socket;
+
+      socket.on('speed_update', (payload) => {
+        if (!payload) return;
+        if (typeof payload === 'object' && payload.bike_uuid) {
+          const s = Number(payload.speed ?? payload.value ?? 0);
+
+          setLiveSpeedByBike(prev => ({
+            ...prev,
+            [payload.bike_uuid]: {
+              speed: isNaN(s) ? 0 : s,
+              updatedAt: Date.now()
+            }
+          }));
+        }
+      });
+    } catch (err) {}
+  };
+
+  // ============================================================
+  // LOADS
+  // ============================================================
   const loadBikes = async () => {
     try {
       const res = await api.get('/v1/bikes/my-bikes');
-
-      const bikesArray = Array.isArray(res.data)
-        ? res.data
-        : (res.data?.data || []);
-
-      setBikes(bikesArray);
+      const payload = res.data?.data ?? res.data;
+      const arr = Array.isArray(payload) ? payload : [payload];
+      setBikes(arr);
     } catch {
       setBikes([]);
     }
   };
 
-  // ---------------- CARREGA HISTÓRICO LOCAL ----------------
-  const loadLocalRuns = async () => {
-    const saved = await AsyncStorage.getItem('runs_history');
-    const list = saved ? JSON.parse(saved) : [];
-
-    setRuns(list);
-
-    // procura corrida ativa
-    const act = list.find(r => r.status === 'active');
-    setActiveRun(act || null);
+  const loadRunsFromAPI = async () => {
+    try {
+      const res = await api.get('/v1/runs');
+      const arr = Array.isArray(res.data) ? res.data : res.data?.data;
+      setRuns(arr || []);
+    } catch {
+      setRuns([]);
+    }
   };
 
-  // ---------------- SALVA HISTÓRICO ----------------
-  const saveRuns = async (list) => {
-    await AsyncStorage.setItem('runs_history', JSON.stringify(list));
+  const loadActiveRunFromAPI = async () => {
+    try {
+      const res = await api.get('/v1/runs', { params: { status: 'active', limit: 1 } });
+      const arr = Array.isArray(res.data) ? res.data : res.data?.data;
+      const act = arr?.length > 0 ? arr[0] : null;
+
+      setActiveRun(act);
+
+      if (act?.bike_uuid && socketRef.current?.connected) {
+        socketRef.current.emit('join_bike', act.bike_uuid);
+        fetchLiveForBike(act.bike_uuid);
+      }
+    } catch {
+      setActiveRun(null);
+    }
   };
 
-  // ---------------- INICIAR CORRIDA ----------------
+  const fetchLiveForBike = async (uuid) => {
+    try {
+      const res = await api.get(`/v1/runs/bike/${uuid}/live`);
+      if (res.data?.last) {
+        const s = res.data.last.speed_kmh ?? res.data.avg_last_n?.avg_kmh;
+
+        setLiveSpeedByBike(prev => ({
+          ...prev,
+          [uuid]: {
+            speed: s ?? 0,
+            updatedAt: Date.now()
+          }
+        }));
+      }
+    } catch {}
+  };
+
+  // ============================================================
+  // START / STOP
+  // ============================================================
   const startRun = async () => {
-    if (activeRun) return Alert.alert("Já existe corrida ativa!");
+    if (activeRun) return;
     if (!bikeId) return Alert.alert("Escolha uma bike");
     if (!name) return Alert.alert("Dê um nome à corrida");
 
-    const runData = {
-      id: Date.now().toString(),
-      name,
-      bike_id: bikeId,
-      status: "active",
-      started_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
+    try {
+      const bike = bikes.find(b => b.id_bike === bikeId);
 
-    setActiveRun(runData);
+      const payload = {
+        name,
+        bike_uuid: bike?.id_bike
+      };
 
-    const updatedHistory = [runData, ...runs];
-    setRuns(updatedHistory);
-    saveRuns(updatedHistory);
+      const res = await api.post('/v1/runs', payload);
+      const created = res.data;
 
-    setName('');
-    setBikeId('');
+      await loadRunsFromAPI();
+      await loadActiveRunFromAPI();
+
+      setName('');
+      setBikeId('');
+
+      navigation.navigate('RealTimeSpeed', {
+        id_run: created.id_run,
+        bike_uuid: bike?.id_bike
+      });
+    } catch (err) {
+      Alert.alert("Erro", err.response?.data?.message || "Falha ao iniciar corrida");
+    }
   };
 
-  // ---------------- FINALIZAR CORRIDA ----------------
   const stopRun = async () => {
     if (!activeRun) return;
 
-    const finished = {
-      ...activeRun,
-      status: "completed",
-      finished_at: new Date().toISOString(),
-    };
-
-    const updatedHistory = runs.map(r => r.id === activeRun.id ? finished : r);
-
-    setRuns(updatedHistory);
-    saveRuns(updatedHistory);
-
-    setActiveRun(null);
+    try {
+      await api.post(`/v1/runs/${activeRun.id_run}/stop`);
+      await loadRunsFromAPI();
+      await loadActiveRunFromAPI();
+      Alert.alert("Sucesso", "Corrida finalizada");
+    } catch (err) {
+      Alert.alert("Erro", err.response?.data?.message || "Falha ao finalizar");
+    }
   };
 
-  // ---------------- LOAD INICIAL ----------------
+  // ============================================================
+  // LOAD INICIAL
+  // ============================================================
+  const loadActiveRun = loadActiveRunFromAPI;
+
   const load = async () => {
     setLoading(true);
     await loadBikes();
-    await loadLocalRuns();
+    await loadRunsFromAPI();
+    await loadActiveRun();
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  const getLiveSpeedFor = (uuid) => {
+    return liveSpeedByBike[uuid]?.speed ?? "—";
+  };
 
+  // ============================================================
+  // UI
+  // ============================================================
   if (loading) {
     return (
-      <View style={s.loading}>
+      <View style={styles.loading}>
         <ActivityIndicator size="large" color="#b30000" />
       </View>
     );
   }
 
-  return (
-    <ScrollView style={{ flex: 1, backgroundColor: "#fff" }} contentContainerStyle={s.container}>
+  const DISABLED = !!activeRun;
 
-      {/* VOLTAR */}
-      <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()}>
-        <Text style={s.backText}>← Voltar</Text>
+  return (
+    <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
+
+      <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+        <Text style={styles.backText}>← Voltar</Text>
       </TouchableOpacity>
 
-      {/* ===================================================== */}
-      {/*        BLOCO DE INICIAR NOVA CORRIDA                  */}
-      {/* ===================================================== */}
-      <View style={s.cardStart}>
-        <Text style={s.labelStart}>Iniciar nova corrida</Text>
-        <Text style={s.helpText}>Inicie apenas quando não houver corrida ativa.</Text>
+      {/* -------------------------------------------------- */}
+      {/* CARD DE INICIAR CORRIDA */}
+      {/* -------------------------------------------------- */}
+      <View style={[styles.cardStart, DISABLED && styles.cardDisabled]}>
+        <Text style={styles.startTitle}>Iniciar nova corrida</Text>
+        <Text style={styles.startSubtitle}>
+          {DISABLED ? "Finalize a corrida atual para iniciar outra" : "Selecione uma bike disponível"}
+        </Text>
 
-        {/* SELETOR DE BIKES */}
-        <View style={s.inputSelect}>
-          <Text style={s.selectLabel}>Bike</Text>
-
-          {bikes.length === 0 && (
-            <Text style={{ color: '#555' }}>Nenhuma bike cadastrada</Text>
-          )}
-
-          {bikes.map(b => (
-            <TouchableOpacity
-              key={b.id_bike}
-              style={[s.selectOption, bikeId === b.id_bike && s.selectedOption]}
-              onPress={() => setBikeId(b.id_bike)}
-            >
-              <Text style={s.selectText}>
-                {b.name} (UUID: {b.id_bike})
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        {bikes.map(b => (
+          <TouchableOpacity
+            key={b.id_bike}
+            disabled={DISABLED}
+            style={[
+              styles.bikeOption,
+              bikeId === b.id_bike && styles.bikeOptionSelected,
+              DISABLED && styles.optionDisabled
+            ]}
+            onPress={() => !DISABLED && setBikeId(b.id_bike)}
+          >
+            <Text style={[styles.bikeOptionText, DISABLED && styles.textDisabled]}>
+              {b.name} (UUID: {b.id_bike})
+            </Text>
+          </TouchableOpacity>
+        ))}
 
         <TextInput
           placeholder="Nome da corrida"
+          placeholderTextColor="#aaa"
           value={name}
-          onChangeText={setName}
-          style={s.input}
+          editable={!DISABLED}
+          onChangeText={!DISABLED ? setName : () => {}}
+          style={[styles.input, DISABLED && styles.inputDisabled]}
         />
 
-        {/* BOTÕES */}
-        <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+        <View style={styles.row}>
           <TouchableOpacity
-            style={[s.btnStart, activeRun && { opacity: 0.5 }]}
-            disabled={!!activeRun}
+            disabled={DISABLED}
+            style={[styles.btnStart, DISABLED && styles.btnDisabled]}
             onPress={startRun}
           >
-            <Text style={s.btnStartText}>Iniciar corrida</Text>
+            <Text style={styles.btnStartText}>Iniciar</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={s.btnClear}
+            disabled={DISABLED}
+            style={[styles.btnClear, DISABLED && styles.btnDisabledOutline]}
             onPress={() => { setName(''); setBikeId(''); }}
           >
-            <Text style={s.btnClearText}>Limpar</Text>
+            <Text style={[styles.btnClearText, DISABLED && styles.textDisabled]}>
+              Limpar
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* ===================================================== */}
-      {/*                     CORRIDA ATIVA                     */}
-      {/* ===================================================== */}
-      <Text style={s.title}>Corrida Ativa</Text>
+      {/* -------------------------------------------------- */}
+      {/* CORRIDA ATIVA */}
+      {/* -------------------------------------------------- */}
+      <Text style={styles.sectionTitle}>Corrida Ativa</Text>
 
-      {!activeRun && (
-        <Text style={s.empty}>Nenhuma corrida ativa</Text>
-      )}
+      {!activeRun && <Text style={styles.empty}>Nenhuma corrida ativa no momento.</Text>}
 
       {activeRun && (
-        <View style={s.cardRunActive}>
-          <Text style={s.cardTitle}>{activeRun.name}</Text>
-          <Text style={s.item}>Bike: {activeRun.bike_id}</Text>
-          <Text style={s.item}>Iniciada: {new Date(activeRun.started_at).toLocaleString()}</Text>
+        <View style={styles.activeCard}>
+          <Text style={styles.activeTitle}>{activeRun.name}</Text>
+          <Text style={styles.activeInfo}>Bike: <Text style={styles.bold}>{activeRun.bike_uuid}</Text></Text>
+          <Text style={styles.activeInfo}>
+            Iniciada: <Text style={styles.bold}>{new Date(activeRun.started_at).toLocaleString()}</Text>
+          </Text>
 
-          <TouchableOpacity style={s.btnStop} onPress={stopRun}>
-            <Text style={s.btnStopText}>Encerrar corrida</Text>
-          </TouchableOpacity>
+          <View style={styles.separator} />
+
+          <Text style={styles.liveLabel}>Velocidade (ao vivo)</Text>
+          <Text style={styles.liveValue}>{getLiveSpeedFor(activeRun.bike_uuid)}</Text>
+
+          <View style={styles.row}>
+            <TouchableOpacity style={styles.stopBtn} onPress={stopRun}>
+              <Text style={styles.stopBtnText}>Encerrar</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.panelBtn}
+              onPress={() =>
+                navigation.navigate('RealTimeSpeed', {
+                  id_run: activeRun.id_run,
+                  bike_uuid: activeRun.bike_uuid
+                })
+              }
+            >
+              <Text style={styles.panelBtnText}>Abrir painel</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
 
-      {/* ===================================================== */}
-      {/*                      HISTÓRICO                        */}
-      {/* ===================================================== */}
-      <Text style={s.title}>Histórico de Corridas</Text>
+      {/* -------------------------------------------------- */}
+      {/* HISTÓRICO — sem botão de encerrar */}
+      {/* -------------------------------------------------- */}
+      <Text style={styles.sectionTitle}>Histórico</Text>
 
-      {runs.length === 0 && (
-        <Text style={s.empty}>Nenhuma corrida encontrada</Text>
-      )}
+      {runs.length === 0 && <Text style={styles.empty}>Nenhuma corrida registrada.</Text>}
 
-      {runs.map((r) => (
-        <View key={r.id} style={s.cardHistory}>
-          <Text style={s.cardTitle}>{r.name}</Text>
-          <Text style={s.item}>Bike: {r.bike_id}</Text>
-          <Text style={s.item}>Status: {r.status}</Text>
-          <Text style={s.item}>Criada: {new Date(r.started_at).toLocaleString()}</Text>
+      {runs.map(r => (
+        <View key={r.id_run} style={styles.historyCard}>
+          <Text style={styles.historyTitle}>{r.name || "(sem nome)"}</Text>
+          <Text style={styles.historyInfo}>Bike: {r.bike_uuid}</Text>
+          <Text style={styles.historyInfo}>Status: {r.status}</Text>
+          <Text style={styles.historyInfo}>Início: {new Date(r.started_at).toLocaleString()}</Text>
 
-          {r.finished_at && (
-            <Text style={s.item}>Finalizada: {new Date(r.finished_at).toLocaleString()}</Text>
+          {r.ended_at && (
+            <Text style={styles.historyInfo}>
+              Fim: {new Date(r.ended_at).toLocaleString()}
+            </Text>
           )}
         </View>
       ))}
@@ -224,79 +331,189 @@ export default function RunsScreen({ navigation }) {
   );
 }
 
-
-const s = StyleSheet.create({
-  loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' },
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: "#fff" },
 
   container: { padding: 20, paddingBottom: 40 },
 
-  backBtn: { marginBottom: 15 },
-  backText: { fontSize: 16, color: "#b30000", fontWeight: '700' },
+  loading: { flex: 1, justifyContent: "center", alignItems: "center" },
 
-  title: { fontSize: 20, fontWeight: '700', color: '#b30000', marginBottom: 10 },
+  backBtn: { marginBottom: 8 },
+  backText: { color: "#b30000", fontWeight: "700", fontSize: 16 },
 
-  empty: { color: '#666', marginBottom: 10 },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#b30000",
+    marginVertical: 12
+  },
+
+  empty: { color: "#777", marginBottom: 8 },
+
+  // ------------------------------------------------------
+  // CARD START
+  // ------------------------------------------------------
+  cardStart: {
+    backgroundColor: "#fff4f4",
+    padding: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#f3c9c9",
+    marginBottom: 24
+  },
+
+  cardDisabled: { opacity: 0.45 },
+
+  startTitle: {
+    fontSize: 18,
+    color: "#b30000",
+    fontWeight: "700",
+    marginBottom: 4
+  },
+
+  startSubtitle: {
+    fontSize: 13,
+    color: "#666",
+    marginBottom: 12
+  },
+
+  bikeOption: {
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    marginBottom: 8,
+    backgroundColor: "#fff"
+  },
+
+  bikeOptionSelected: {
+    borderColor: "#b30000",
+    backgroundColor: "#ffe1e1"
+  },
+
+  optionDisabled: { opacity: 0.5 },
+
+  bikeOptionText: { fontSize: 15, color: "#333" },
 
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
-    padding: 10,
+    borderColor: "#ddd",
     borderRadius: 8,
+    padding: 12,
     marginBottom: 12
   },
 
-  /* --------------------- CARD INICIAR -------------------- */
-  cardStart: {
-    backgroundColor: "#ffeeee",
-    borderRadius: 10,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#f5d2d2",
-    marginBottom: 25
-  },
-  labelStart: { fontSize: 18, color: "#b30000", fontWeight: "700" },
-  helpText: { fontSize: 12, color: "#777", marginTop: -2, marginBottom: 10 },
+  inputDisabled: { backgroundColor: "#eee", color: "#888" },
 
-  inputSelect: { marginBottom: 10 },
-  selectLabel: { fontSize: 14, marginBottom: 4, color: '#550000' },
-  selectOption: {
-    padding: 10,
-    borderRadius: 8,
+  row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+
+  btnStart: {
+    flex: 1,
+    backgroundColor: "#b30000",
+    padding: 12,
+    borderRadius: 10,
+    alignItems: "center",
+    marginRight: 8
+  },
+
+  btnDisabled: { opacity: 0.5 },
+
+  btnStartText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+
+  btnClear: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: "#b30000",
+    alignItems: "center"
+  },
+
+  btnDisabledOutline: { borderColor: "#aaa", opacity: 0.5 },
+
+  btnClearText: { color: "#b30000", fontWeight: "700", fontSize: 16 },
+
+  textDisabled: { color: "#777" },
+
+  // ------------------------------------------------------
+  // ACTIVE RUN
+  // ------------------------------------------------------
+  activeCard: {
+    padding: 18,
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#ffcccc",
+    marginBottom: 24
+  },
+
+  activeTitle: {
+    fontSize: 19,
+    fontWeight: "700",
+    color: "#b30000",
     marginBottom: 6
   },
-  selectedOption: { backgroundColor: "#ffcccc", borderColor: "#b30000" },
-  selectText: { color: "#333" },
 
-  btnStart: { backgroundColor: '#b30000', padding: 10, borderRadius: 8, flex: 1, marginRight: 5 },
-  btnStartText: { color: '#fff', fontWeight: '700', textAlign: "center" },
+  activeInfo: { fontSize: 14, color: "#444", marginBottom: 2 },
 
-  btnClear: { backgroundColor: '#fff', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#b30000', flex: 1, marginLeft: 5 },
-  btnClearText: { color: '#b30000', fontWeight: '700', textAlign: "center" },
+  bold: { fontWeight: "700", color: "#222" },
 
-  /* --------------------- CORRIDA ATIVA -------------------- */
-  cardRunActive: {
-    padding: 14,
-    borderRadius: 10,
-    backgroundColor: '#fff7f7',
-    borderWidth: 1,
-    borderColor: '#ffb3b3',
-    marginBottom: 20
+  separator: {
+    height: 1,
+    backgroundColor: "#eee",
+    marginVertical: 12
   },
-  cardTitle: { fontSize: 17, fontWeight: '700', color: '#b30000', marginBottom: 4 },
-  item: { color: '#333', marginBottom: 3 },
 
-  btnStop: { backgroundColor: '#ff4444', padding: 10, borderRadius: 8, marginTop: 10 },
-  btnStopText: { color: '#fff', fontWeight: '700', textAlign: 'center' },
+  liveLabel: { textAlign: "center", color: "#777", fontSize: 13 },
 
-  /* --------------------- HISTÓRICO -------------------- */
-  cardHistory: {
-    padding: 14,
+  liveValue: {
+    fontSize: 38,
+    fontWeight: "700",
+    color: "#b30000",
+    textAlign: "center",
+    marginVertical: 4
+  },
+
+  stopBtn: {
+    flex: 1,
+    backgroundColor: "#ff4444",
+    padding: 12,
     borderRadius: 10,
-    backgroundColor: '#fafafa',
+    alignItems: "center",
+    marginRight: 8
+  },
+
+  stopBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+
+  panelBtn: {
+    flex: 1,
+    backgroundColor: "#b30000",
+    padding: 12,
+    borderRadius: 10,
+    alignItems: "center",
+    marginLeft: 8
+  },
+
+  panelBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+
+  // ------------------------------------------------------
+  // HISTÓRICO — sem botão encerrar
+  // ------------------------------------------------------
+  historyCard: {
+    padding: 16,
+    backgroundColor: "#fafafa",
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#eee',
+    borderColor: "#eee",
     marginBottom: 12
-  }
+  },
+
+  historyTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#b30000",
+    marginBottom: 4
+  },
+
+  historyInfo: { fontSize: 14, color: "#444", marginBottom: 2 }
 });

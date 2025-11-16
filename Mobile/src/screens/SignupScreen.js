@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -8,6 +8,7 @@ import {
   TouchableOpacity 
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../api/api';
 
 export default function SignupScreen() {
@@ -17,26 +18,33 @@ export default function SignupScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
+  // Limpamos tokens antigos para evitar interferência no fluxo
+  useEffect(() => {
+    AsyncStorage.removeItem('token');
+  }, []);
+
   const register = async () => {
     if (!name || !email || !password)
       return Alert.alert("Erro", "Preencha todos os campos");
 
     try {
-      // faz o cadastro
       await api.post('/v1/auth/register', {
         name,
         email,
         password
       });
 
-      // navega para Login
       Alert.alert(
         "Sucesso",
         "Conta criada com sucesso!",
         [
           {
             text: "OK",
-            onPress: () => navigation.navigate("Login")
+            onPress: () =>
+              navigation.reset({
+                index: 0,
+                routes: [{ name: "Login" }]
+              })
           }
         ]
       );
