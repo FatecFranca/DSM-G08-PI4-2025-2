@@ -1,13 +1,17 @@
-import React, { useState, useContext } from 'react';
-import { View, Text, TextInput, StyleSheet, Alert, TouchableOpacity } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { useState } from 'react';
+import { 
+  View, 
+  Text, 
+  TextInput, 
+  StyleSheet, 
+  Alert, 
+  TouchableOpacity 
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { AuthContext } from '../context/AuthContext';
 import api from '../api/api';
 
 export default function SignupScreen() {
   const navigation = useNavigation();
-  const { setToken } = useContext(AuthContext);
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -18,24 +22,24 @@ export default function SignupScreen() {
       return Alert.alert("Erro", "Preencha todos os campos");
 
     try {
-      const res = await api.post('/v1/auth/register', {
-        name, email, password
+      // faz o cadastro
+      await api.post('/v1/auth/register', {
+        name,
+        email,
+        password
       });
 
-      const token = res.data?.token;
-
-      if (!token) {
-        Alert.alert("Erro", "Token ausente na resposta");
-        return;
-      }
-
-      await AsyncStorage.setItem("token", token);
-      setToken(token);
-
-      navigation.reset({
-        index: 0,
-        routes: [{ name: "Home" }],
-      });
+      // navega para Login
+      Alert.alert(
+        "Sucesso",
+        "Conta criada com sucesso!",
+        [
+          {
+            text: "OK",
+            onPress: () => navigation.navigate("Login")
+          }
+        ]
+      );
 
     } catch (e) {
       Alert.alert("Erro", e.response?.data?.message || "Falha no cadastro");

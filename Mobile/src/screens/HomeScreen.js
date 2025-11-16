@@ -49,6 +49,15 @@ export default function HomeScreen({ navigation }) {
         <Text style={s.cardSub}>Ver métricas por bike ou run</Text>
       </TouchableOpacity>
 
+      {/* 🟢 NOVO CARD */}
+      <TouchableOpacity 
+        style={s.cardBtn}
+        onPress={() => navigation.navigate('RealTimeSpeed', { bikeId: null })}
+      >
+        <Text style={s.cardTitle}>Velocidade em Tempo Real</Text>
+        <Text style={s.cardSub}>Monitorar velocidade da bike ao vivo</Text>
+      </TouchableOpacity>
+
       <TouchableOpacity style={s.logoutBtn} onPress={logout}>
         <Text style={s.logoutText}>Sair</Text>
       </TouchableOpacity>
@@ -60,8 +69,8 @@ const s = StyleSheet.create({
   container: { 
     padding: 20, 
     backgroundColor: '#fff',
-    flexGrow: 1,         // 🟢 cobre 100% da tela
-    minHeight: "100%"    // 🟢 impede espaço vazio
+    flexGrow: 1,
+    minHeight: "100%"
   },
   loadingBox: { flex:1, justifyContent:'center', alignItems:'center', backgroundColor:'#fff' },
   greeting: { fontSize: 22, fontWeight: '700', color: '#b30000', marginBottom: 16 },

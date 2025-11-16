@@ -10,6 +10,8 @@ import BikesScreen from './src/screens/BikesScreen';
 import RunsScreen from './src/screens/RunsScreen';
 import StatsScreen from './src/screens/StatsScreen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import RealTimeSpeedScreen from './src/screens/RealTimeSpeedScreen';
+
 
 const Stack = createNativeStackNavigator();
 
@@ -48,6 +50,8 @@ function Routes() {
             <Stack.Screen name="Bikes" component={BikesScreen} />
             <Stack.Screen name="Runs" component={RunsScreen} />
             <Stack.Screen name="Stats" component={StatsScreen} />
+            <Stack.Screen name="RealTimeSpeed" component={RealTimeSpeedScreen} />
+
           </>
         ) : (
           <>
