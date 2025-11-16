@@ -35,35 +35,29 @@ async function requestJson(url, options = {}) {
 export async function register({ email, password, name }, options = {}) {
     if (!email || !password || !name) throw new Error("Email, senha e nome são obrigatórios.");
 
+    const { persist = "local" } = options;
+
+    const url = `${API_BASE}auth/register`;
+    const payload = await requestJson(url, {
+        method: "POST",
+        body: JSON.stringify({ email, password, name }),
+    });
+
+    // extrair token de várias chaves possíveis
+    const token = payload?.token || payload?.accessToken || payload?.access_token || null;
+
     try {
-
-        const { persist = "local" } = options;
-
-        const url = `${API_BASE}auth/register`;
-        const payload = await requestJson(url, {
-            method: "POST",
-            body: JSON.stringify({ email, password, name }),
-        });
-
-        // extrair token de várias chaves possíveis
-        const token = payload?.token || payload?.accessToken || payload?.access_token || null;
-
-        try {
-            if (token) {
-                if (persist === "local") localStorage.setItem("auth_token", token);
-                else if (persist === "session") sessionStorage.setItem("auth_token", token);
-            }
-            if (payload?.user) {
-                const userJson = JSON.stringify(payload.user);
-                if (persist === "local") localStorage.setItem("auth_user", userJson);
-                else if (persist === "session") sessionStorage.setItem("auth_user", userJson);
-            }
-        } catch (e) {
-            // se storage não disponível (ex: bloqueado), ignore silenciosamente
+        if (token) {
+            if (persist === "local") localStorage.setItem("auth_token", token);
+            else if (persist === "session") sessionStorage.setItem("auth_token", token);
+        }
+        if (payload?.user) {
+            const userJson = JSON.stringify(payload.user);
+            if (persist === "local") localStorage.setItem("auth_user", userJson);
+            else if (persist === "session") sessionStorage.setItem("auth_user", userJson);
         }
     } catch (e) {
-        console.error("EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE", e)
-        throw e;
+        // se storage não disponível (ex: bloqueado), ignore silenciosamente
     }
 
     return payload;
