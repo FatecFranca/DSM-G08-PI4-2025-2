@@ -937,6 +937,8 @@ function RunStatsView({ stats, run }) {
         valor: typeof value === 'number' ? value.toFixed(4) : value
     })) : [];
 
+    console.log(quantisData);
+
     return (
         <Tabs defaultValue="overview" className="space-y-6">
             <TabsList className="grid w-full grid-cols-4">
@@ -1158,11 +1160,12 @@ function RunStatsView({ stats, run }) {
                                 <TableBody>
                                     {quantisData.map((item, index) => (
                                         <TableRow key={index}>
+                                            {/* {`${console.log(item.valor)}`} */}
                                             <TableCell className="font-medium capitalize">
                                                 {item.medida.replace(/_/g, ' ')}
                                             </TableCell>
                                             <TableCell className="text-right font-mono">
-                                                {item.valor}
+                                                {`${item.valor ? item.valor : 0}`}
                                             </TableCell>
                                             <TableCell className="text-sm text-muted-foreground">
                                                 {getQuantilDescription(item.medida)}
@@ -1229,7 +1232,7 @@ function RunStatsView({ stats, run }) {
                     </Card>
                 </div>
             </TabsContent>
-        </Tabs>
+        </Tabs >
     );
 }
 
