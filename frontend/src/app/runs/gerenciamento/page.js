@@ -65,6 +65,10 @@ export default function RunsPage() {
     const [activeLast, setActiveLast] = useState(null);
     const pollingRef = useRef(null);
 
+    // logo abaixo dos outros useState
+    const [tab, setTab] = useState("active");
+
+
     // check auth
     useEffect(() => {
         try {
@@ -305,7 +309,7 @@ export default function RunsPage() {
                     )}
                 </div>
 
-                <Tabs defaultValue="active" className="space-y-6">
+                <Tabs value={tab} onValueChange={setTab} className="space-y-6">
                     <TabsList className="grid w-full max-w-md grid-cols-3">
                         <TabsTrigger value="active" className="flex items-center gap-2">
                             <PlayCircle className="h-4 w-4" />
@@ -459,7 +463,7 @@ export default function RunsPage() {
                                 onFetchMetrics={handleFetchMetrics}
                             />
                         ) : (
-                            <EmptyActiveState />
+                            <EmptyActiveState onStart={() => setTab("new")} />
                         )}
                     </TabsContent>
 
@@ -490,7 +494,7 @@ export default function RunsPage() {
                                         <p className="text-red-700 text-sm mt-1">{error}</p>
                                     </div>
                                 ) : runs.filter(r => !(r.status === "active" || r.status === "started")).length === 0 ? (
-                                    <EmptyHistoryState />
+                                    <EmptyHistoryState onStart={() => setTab("new")} />
                                 ) : (
                                     <ScrollArea className="h-[600px]">
                                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pr-4">
@@ -744,7 +748,7 @@ function RunCard({ run, onFetchMetrics }) {
 }
 
 /* Empty States */
-function EmptyActiveState() {
+function EmptyActiveState({ onStart }) {
     return (
         <Card>
             <CardContent className="py-12">
@@ -757,7 +761,7 @@ function EmptyActiveState() {
                         Inicie uma nova corrida para começar a coletar dados em tempo real.
                     </p>
                     <Button
-                        onClick={() => document.querySelector('[data-value="new"]').click()}
+                        onClick={onStart}
                         className="flex items-center gap-2 mx-auto"
                     >
                         <PlayCircle className="h-4 w-4" />
@@ -769,7 +773,7 @@ function EmptyActiveState() {
     );
 }
 
-function EmptyHistoryState() {
+function EmptyHistoryState({ onStart }) {
     return (
         <div className="text-center py-12">
             <div className="mx-auto w-16 h-16 bg-muted/20 rounded-full flex items-center justify-center mb-4">
@@ -780,7 +784,7 @@ function EmptyHistoryState() {
                 Suas corridas finalizadas aparecerão aqui para análise e consulta.
             </p>
             <Button
-                onClick={() => document.querySelector('[data-value="new"]').click()}
+                onClick={onStart}
                 variant="outline"
                 className="flex items-center gap-2 mx-auto"
             >
@@ -790,6 +794,7 @@ function EmptyHistoryState() {
         </div>
     );
 }
+
 
 // Missing icon components
 const Plus = ({ className }) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>;
