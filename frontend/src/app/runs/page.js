@@ -652,40 +652,42 @@ export default function RunsDashboardPage() {
             {/* Modal: estatísticas da run */}
             <Dialog open={!!selectedRunForModal} onOpenChange={(open) => { if (!open) { setSelectedRunForModal(null); setRunStats(null); } }}>
                 <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            <BarChart2 className="h-5 w-5" />
-                            Estatísticas — {selectedRunForModal?.name || "Run"}
-                        </DialogTitle>
-                        <DialogDescription>
-                            {selectedRunForModal ? `ID: ${selectedRunForModal.id_run} • Bike: ${selectedRunForModal.bike_name || selectedRunForModal.bike_uuid} • Leituras: ${selectedRunForModal.total_leituras || 0}` : ""}
-                        </DialogDescription>
-                    </DialogHeader>
+                    <ScrollArea className="h-175">
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2">
+                                <BarChart2 className="h-5 w-5" />
+                                Estatísticas — {selectedRunForModal?.name || "Run"}
+                            </DialogTitle>
+                            <DialogDescription>
+                                {selectedRunForModal ? `ID: ${selectedRunForModal.id_run} • Bike: ${selectedRunForModal.bike_name || selectedRunForModal.bike_uuid} • Leituras: ${selectedRunForModal.total_leituras || 0}` : ""}
+                            </DialogDescription>
+                        </DialogHeader>
 
-                    <div className="mt-3">
-                        {loadingRunStats ? (
-                            <div className="min-h-[200px] flex items-center justify-center">
-                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                            </div>
-                        ) : runStats ? (
-                            runStats.error ? (
-                                <div className="text-red-600 text-center py-8">
-                                    <AlertTriangle className="h-8 w-8 mx-auto mb-2" />
-                                    <p className="font-medium">Erro ao carregar estatísticas</p>
-                                    <p className="text-sm mt-1">{runStats.error}</p>
+                        <div className="mt-3">
+                            {loadingRunStats ? (
+                                <div className="min-h-[200px] flex items-center justify-center">
+                                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
                                 </div>
-                            ) : (
-                                <RunStatsView stats={runStats} run={selectedRunForModal} />
-                            )
-                        ) : null}
-                    </div>
+                            ) : runStats ? (
+                                runStats.error ? (
+                                    <div className="text-red-600 text-center py-8">
+                                        <AlertTriangle className="h-8 w-8 mx-auto mb-2" />
+                                        <p className="font-medium">Erro ao carregar estatísticas</p>
+                                        <p className="text-sm mt-1">{runStats.error}</p>
+                                    </div>
+                                ) : (
+                                    <RunStatsView stats={runStats} run={selectedRunForModal} />
+                                )
+                            ) : null}
+                        </div>
+                    </ScrollArea>
 
                     <DialogFooter>
                         <Button onClick={() => { setSelectedRunForModal(null); setRunStats(null); }}>Fechar</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-        </div>
+        </div >
     );
 }
 
