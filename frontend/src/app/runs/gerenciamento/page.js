@@ -589,22 +589,75 @@ function ActiveRunView({ run, onStop, activeLast, onFetchMetrics }) {
     const [showRawLast, setShowRawLast] = useState(false);
     const [showRawMetrics, setShowRawMetrics] = useState(false);
 
+    // auto-update toggle e ref para interval
+    const [autoUpdateMetrics, setAutoUpdateMetrics] = useState(true);
+    const pollingMetricsRef = useRef(null);
+
     // derive useful numbers (safe)
-    const avgKmh = activeLast?.avg_kmh ?? activeLast?.kmh ?? run.avg_kmh ?? null;
-    const maxKmh = activeLast?.max_kmh ?? run.max_kmh ?? null;
-    const readingsCount = activeLast?.readings_count ?? run.readings_count ?? 0;
-    const distance_m = activeLast?.distance_m ?? run.distance_m ?? 0;
-    const duration_s = activeLast?.duration_s ?? run.duration_s ?? 0;
+    // PRIORIDADE: activeLast (ao vivo) -> metrics (fetch) -> run (fallback)
+    const avgKmh = activeLast?.avg_kmh ?? activeLast?.kmh ?? metrics?.avg_kmh ?? run.avg_kmh ?? null;
+    const maxKmh = activeLast?.max_kmh ?? run.max_kmh ?? metrics?.max_kmh ?? null;
+    const readingsCount = activeLast?.readings_count ?? run.readings_count ?? metrics?.readings_count ?? 0;
+    const distance_m = activeLast?.distance_m ?? run.distance_m ?? metrics?.distance_m ?? 0;
+    const duration_s = activeLast?.duration_s ?? run.duration_s ?? metrics?.duration_s ?? 0;
 
     // build sparkline data from activeLast.last (if array) or from metrics.series
     const series = (() => {
         if (!activeLast) return [];
         if (Array.isArray(activeLast.last)) return activeLast.last.map(x => (x.kmh ?? x.speed ?? null)).filter(v => v != null);
-        // fallback: maybe activeLast.history or samples
         if (Array.isArray(activeLast.samples)) return activeLast.samples.map(x => (x.kmh ?? x.speed ?? null)).filter(v => v != null);
         if (activeLast.kmh != null) return [activeLast.kmh];
         return [];
     })();
+
+    // função para fazer fetch imediato de métricas (com try/catch)
+    async function fetchMetricsNow() {
+        try {
+            await onFetchMetrics(run.id_run, setMetrics);
+        } catch (err) {
+            console.error('Erro ao buscar métricas (auto):', err);
+        }
+    }
+
+    // iniciar/limpar polling de métricas quando autoUpdateMetrics mudar ou run mudar
+    useEffect(() => {
+        // sempre buscar imediatamente ao mudar run ou habilitar auto-update
+        let mounted = true;
+
+        if (!run || !onFetchMetrics) return;
+
+        // se autoUpdate ligado, faz fetch imediato e agenda interval
+        if (autoUpdateMetrics) {
+            fetchMetricsNow();
+
+            // safety: limpa se já houver
+            if (pollingMetricsRef.current) {
+                clearInterval(pollingMetricsRef.current);
+                pollingMetricsRef.current = null;
+            }
+
+            pollingMetricsRef.current = setInterval(() => {
+                // não faz nada se componente desmontado
+                if (!mounted) return;
+                fetchMetricsNow();
+            }, 5000); // 5s (ajuste se quiser menor/maior)
+        } else {
+            // se desligou autoUpdate, limpa interval mas mantém metrics atuais
+            if (pollingMetricsRef.current) {
+                clearInterval(pollingMetricsRef.current);
+                pollingMetricsRef.current = null;
+            }
+        }
+
+        return () => {
+            mounted = false;
+            if (pollingMetricsRef.current) {
+                clearInterval(pollingMetricsRef.current);
+                pollingMetricsRef.current = null;
+            }
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [run?.id_run, autoUpdateMetrics, onFetchMetrics]);
 
     return (
         <div className="space-y-6">
@@ -648,7 +701,21 @@ function ActiveRunView({ run, onStop, activeLast, onFetchMetrics }) {
                                     <StopCircle className="h-4 w-4" />
                                     Parar
                                 </Button>
-                                <Button size="sm" variant="outline" onClick={() => onFetchMetrics(run.id_run, setMetrics)}>
+
+                                {/* Toggle Auto-Update */}
+                                <Button
+                                    size="sm"
+                                    variant={autoUpdateMetrics ? "default" : "outline"}
+                                    onClick={() => setAutoUpdateMetrics(v => !v)}
+                                    className="h-8 flex items-center gap-2"
+                                    title={autoUpdateMetrics ? "Auto-update ligado" : "Auto-update desligado"}
+                                >
+                                    <Zap className="h-4 w-4" />
+                                    {autoUpdateMetrics ? "Auto ON" : "Auto OFF"}
+                                </Button>
+
+                                {/* Manual refresh still available */}
+                                <Button size="sm" variant="outline" onClick={() => fetchMetricsNow()}>
                                     Atualizar Métricas
                                 </Button>
                             </div>
@@ -665,7 +732,7 @@ function ActiveRunView({ run, onStop, activeLast, onFetchMetrics }) {
 
                         <div className="p-4 rounded-lg bg-muted/10 text-center">
                             <div className="text-xs text-muted-foreground">Máx km/h</div>
-                            <div className="text-xl font-bold">{maxKmh != null ? fmtNum(maxKmh,1) + ' km/h' : '—'}</div>
+                            <div className="text-xl font-bold">{maxKmh != null ? fmtNum(maxKmh, 1) + ' km/h' : '—'}</div>
                         </div>
 
                         <div className="p-4 rounded-lg bg-muted/10 text-center">
@@ -724,7 +791,7 @@ function ActiveRunView({ run, onStop, activeLast, onFetchMetrics }) {
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                                     <div>
                                         <div className="text-xs text-muted-foreground">avg_kmh</div>
-                                        <div className="font-medium">{fmtNum(metrics.avg_kmh ?? avgKmh,1)}</div>
+                                        <div className="font-medium">{fmtNum(metrics.avg_kmh ?? avgKmh, 1)}</div>
                                     </div>
                                     <div>
                                         <div className="text-xs text-muted-foreground">distance_m</div>
@@ -754,7 +821,7 @@ function ActiveRunView({ run, onStop, activeLast, onFetchMetrics }) {
                         ) : (
                             <div className="text-center py-6 text-muted-foreground border rounded-lg">
                                 <BarChart3 className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                                <p className="text-sm">Clique em "Atualizar Métricas" para carregar</p>
+                                <p className="text-sm">As métricas são atualizadas automaticamente (ou clique em "Atualizar Métricas")</p>
                             </div>
                         )}
                     </div>
@@ -926,8 +993,6 @@ function EmptyHistoryState({ onStart }) {
     );
 }
 
-
-// Missing icon components
 const Plus = ({ className }) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>;
 const Hash = ({ className }) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" /></svg>;
 const Ruler = ({ className }) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m-6 4h6m-6 4h6M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" /></svg>;
