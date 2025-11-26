@@ -1322,7 +1322,6 @@ function RunStatsView({ stats = {}, run = null }) {
                 )}
             </TabsContent>
 
-            {/* DETAILS */}
             <TabsContent value="details" className="space-y-6">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <Card>
@@ -1330,17 +1329,129 @@ function RunStatsView({ stats = {}, run = null }) {
                             <CardTitle>Inferência Estatística</CardTitle>
                             <CardDescription>Resultados dos testes de hipóteses e intervalos de confiança</CardDescription>
                         </CardHeader>
+
                         <CardContent>
                             {stats?.inferencia && Object.keys(stats.inferencia).length > 0 ? (
-                                <div className="space-y-4">
-                                    {Object.entries(stats.inferencia).map(([key, value]) => (
-                                        <div key={key} className="flex justify-between items-center py-2 border-b">
-                                            <span className="font-medium capitalize">{key.replace(/_/g, ' ')}</span>
-                                            <span className="font-mono text-sm">
-                                                {typeof value === 'number' ? Number(value).toFixed(4) : String(value)}
-                                            </span>
+                                <div className="space-y-6">
+                                    {/* Intervalo de Confiança */}
+                                    {stats.inferencia.intervalo_confianca && (
+                                        (() => {
+                                            const ic = stats.inferencia.intervalo_confianca;
+                                            const nivel = ic.nivel_confianca ?? ic.nivel ?? 0.95;
+                                            const minimo = Array.isArray(ic.intervalo) ? Number(ic.intervalo[0]) : Number(ic.intervalo?.min ?? ic.intervalo?.[0]);
+                                            const maximo = Array.isArray(ic.intervalo) ? Number(ic.intervalo[1]) : Number(ic.intervalo?.max ?? ic.intervalo?.[1]);
+                                            const media = Number(ic.media_amostral ?? ic.media ?? ic.media_amostral);
+                                            const margem = Number(ic.margem_erro ?? ic.margemErro ?? ic.margem);
+                                            const sd = ic.desvio_padrao ?? ic.sd ?? null;
+                                            const tamanho = ic.tamanho_amostra ?? ic.tamanho ?? ic.tamanho_amostral ?? stats.amostras ?? 0;
+                                            // normaliza para mini barra (proteção contra divide by zero)
+                                            const range = (Number.isFinite(minimo) && Number.isFinite(maximo) && maximo > minimo) ? (maximo - minimo) : 1;
+                                            const leftPct = Number.isFinite(minimo) ? Math.max(0, Math.round(((minimo - (media - range)) / (range * 3)) * 100)) : 0;
+                                            const widthPct = Number.isFinite(minimo) && Number.isFinite(maximo) ? Math.max(6, Math.round(((maximo - minimo) / (range * 3)) * 100)) : 50;
+
+                                            const fmt = (v) => {
+                                                if (v === null || v === undefined || Number.isNaN(Number(v))) return '-';
+                                                return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 4 }).format(Number(v));
+                                            };
+
+                                            return (
+                                                <div className="space-y-3 border rounded-md p-4">
+                                                    <div className="flex items-start justify-between gap-4">
+                                                        <div>
+                                                            <div className="text-sm text-muted-foreground">Intervalo de Confiança</div>
+                                                            <div className="text-lg font-bold">{fmt(minimo)} — {fmt(maximo)}</div>
+                                                            <div className="text-xs text-muted-foreground mt-1">
+                                                                Nível de confiança: {(Number(nivel) * 100).toFixed(0)}% • Distribuição: <span className="font-medium">{ic.distribuicao_utilizada ?? ic.distribuicao ?? '-'}</span>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="text-right">
+                                                            <div className="text-xs text-muted-foreground">Tamanho da amostra</div>
+                                                            <div className="font-bold">{tamanho}</div>
+                                                            <div className="text-xs text-muted-foreground mt-2">Margem de erro</div>
+                                                            <div className="font-mono font-medium">{fmt(margem)}</div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* mini barra visual do intervalo */}
+                                                    <div className="mt-3">
+                                                        <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                                                            <div
+                                                                className="h-2 rounded-full bg-gradient-to-r from-indigo-500 to-indigo-300"
+                                                                style={{ width: `${widthPct}%`, marginLeft: `${leftPct}%` }}
+                                                            />
+                                                        </div>
+                                                        <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
+                                                            <div>média amostral: <span className="font-mono ml-1">{fmt(media)}</span></div>
+                                                            {sd !== null && <div>σ ≈ <span className="font-mono ml-1">{fmt(sd)}</span></div>}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()
+                                    )}
+
+                                    {/* Teste de Normalidade */}
+                                    {stats.inferencia.teste_normalidade && (
+                                        (() => {
+                                            const tn = stats.inferencia.teste_normalidade;
+                                            const stat = Number(tn.estatistica);
+                                            const pvalue = Number(tn.valor_p ?? tn.p_value ?? tn.pvalor ?? tn.p);
+                                            const interpret = tn.interpretacao ?? tn.interpretacao ?? tn.normalidade ?? '';
+                                            const normalidadeText = tn.normalidade ?? tn.interpretacao ?? '';
+                                            const isNormal = typeof normalidadeText === 'string' && /normal/i.test(normalidadeText);
+
+                                            const fmt = (v) => {
+                                                if (v === null || v === undefined || Number.isNaN(Number(v))) return '-';
+                                                return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 4, maximumFractionDigits: 4 }).format(Number(v));
+                                            };
+
+                                            return (
+                                                <div className="space-y-2 border rounded-md p-4">
+                                                    <div className="flex items-center justify-between gap-4">
+                                                        <div>
+                                                            <div className="text-sm text-muted-foreground">Teste de Normalidade</div>
+                                                            <div className="text-lg font-semibold">{tn.normalidade ?? tn.interpretacao ?? 'Resultado'}</div>
+                                                            <div className="text-xs text-muted-foreground mt-1">{tn.descricao ?? ''}</div>
+                                                        </div>
+
+                                                        <div className="text-right flex flex-col items-end gap-2">
+                                                            <Badge variant={isNormal ? 'secondary' : 'destructive'} className="text-xs">
+                                                                {isNormal ? 'Provavelmente normal' : 'Não normal'}
+                                                            </Badge>
+                                                            <div className="text-xs text-muted-foreground">p-valor</div>
+                                                            <div className="font-mono">{fmt(pvalue)}</div>
+                                                            <div className="text-xs text-muted-foreground">Estatística</div>
+                                                            <div className="font-mono">{fmt(stat)}</div>
+                                                        </div>
+                                                    </div>
+
+                                                    {tn.interpretacao && (
+                                                        <div className="mt-2 text-sm text-muted-foreground">
+                                                            <strong>Interpretação:</strong> {tn.interpretacao}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })()
+                                    )}
+
+                                    {/* Outros campos de inferência — fallback */}
+                                    {Object.entries(stats.inferencia).filter(([k]) => k !== 'intervalo_confianca' && k !== 'teste_normalidade').length > 0 && (
+                                        <div className="space-y-2 border rounded-md p-3">
+                                            <div className="text-sm text-muted-foreground mb-2">Outros resultados</div>
+                                            <div className="space-y-2">
+                                                {Object.entries(stats.inferencia).filter(([k]) => k !== 'intervalo_confianca' && k !== 'teste_normalidade').map(([key, value]) => (
+                                                    <div key={key} className="flex justify-between items-center py-2 border-b last:border-b-0">
+                                                        <span className="font-medium capitalize">{key.replace(/_/g, ' ')}</span>
+                                                        <span className="font-mono text-sm">
+                                                            {typeof value === 'number' ? Number(value).toFixed(4) : (typeof value === 'string' ? value : JSON.stringify(value))}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
-                                    ))}
+                                    )}
                                 </div>
                             ) : (
                                 <div className="text-center py-8 text-muted-foreground">
