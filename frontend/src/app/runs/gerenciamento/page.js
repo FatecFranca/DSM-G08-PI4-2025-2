@@ -597,7 +597,7 @@ function ActiveRunView({ run, onStop, activeLast, onFetchMetrics }) {
     // derive useful numbers (safe)
     // PRIORIDADE: activeLast (ao vivo) -> metrics (fetch) -> run (fallback)
     // const avgKmh = activeLast?.avg_kmh ?? activeLast?.kmh ?? metrics?.avg_kmh ?? run.avg_kmh ?? null;
-    const avgKmh = metrics?.last.speed_kmh ?? run.avg_kmh ?? null;
+    const avgKmh = metrics?.last?.speed_kmh ?? run.avg_kmh ?? null;
     const maxKmh = activeLast?.max_kmh ?? run.max_kmh ?? metrics?.max_kmh ?? null;
     const readingsCount = activeLast?.readings_count ?? run.readings_count ?? metrics?.readings_count ?? 0;
     const distance_m = activeLast?.distance_m ?? run.distance_m ?? metrics?.distance_m ?? 0;
