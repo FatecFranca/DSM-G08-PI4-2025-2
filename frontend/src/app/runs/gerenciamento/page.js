@@ -586,6 +586,7 @@ function Sparkline({ data }) {
 /* Componente para Corrida Ativa */
 function ActiveRunView({ run, onStop, activeLast, onFetchMetrics }) {
     const [metrics, setMetrics] = useState(null);
+    console.log(metrics)
     const [showRawLast, setShowRawLast] = useState(false);
     const [showRawMetrics, setShowRawMetrics] = useState(false);
 
@@ -595,7 +596,8 @@ function ActiveRunView({ run, onStop, activeLast, onFetchMetrics }) {
 
     // derive useful numbers (safe)
     // PRIORIDADE: activeLast (ao vivo) -> metrics (fetch) -> run (fallback)
-    const avgKmh = activeLast?.avg_kmh ?? activeLast?.kmh ?? metrics?.avg_kmh ?? run.avg_kmh ?? null;
+    // const avgKmh = activeLast?.avg_kmh ?? activeLast?.kmh ?? metrics?.avg_kmh ?? run.avg_kmh ?? null;
+    const avgKmh = metrics?.last.speed_kmh ?? run.avg_kmh ?? null;
     const maxKmh = activeLast?.max_kmh ?? run.max_kmh ?? metrics?.max_kmh ?? null;
     const readingsCount = activeLast?.readings_count ?? run.readings_count ?? metrics?.readings_count ?? 0;
     const distance_m = activeLast?.distance_m ?? run.distance_m ?? metrics?.distance_m ?? 0;
@@ -688,7 +690,7 @@ function ActiveRunView({ run, onStop, activeLast, onFetchMetrics }) {
                         </div>
                         <div className="flex flex-col items-end gap-3">
                             <div className="text-right">
-                                <div className="text-sm text-muted-foreground">Velocidade média</div>
+                                <div className="text-sm text-muted-foreground">Velocidade</div>
                                 <div className="text-3xl font-bold text-green-600">{avgKmh != null ? fmtNum(avgKmh, 1) + ' km/h' : '—'}</div>
                             </div>
 
@@ -742,7 +744,7 @@ function ActiveRunView({ run, onStop, activeLast, onFetchMetrics }) {
                     </div>
 
                     {/* Sparkline + last reading quick view */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                    {/* <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
                         <div className="md:col-span-2 bg-muted/5 border rounded-lg p-4">
                             <div className="flex items-center justify-between mb-2">
                                 <div className="text-sm font-medium flex items-center gap-2"><BarChart3 className="h-4 w-4" />Últimas velocidades</div>
@@ -781,7 +783,7 @@ function ActiveRunView({ run, onStop, activeLast, onFetchMetrics }) {
                                 <div className="text-sm text-muted-foreground">Aguardando primeira leitura...</div>
                             )}
                         </div>
-                    </div>
+                    </div> */}
 
                     {/* Métricas expandidas */}
                     <div className="mt-6">

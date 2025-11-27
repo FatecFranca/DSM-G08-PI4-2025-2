@@ -7,7 +7,7 @@ info:
     email: dev-team@example.com
   termsOfService: ""
 servers:
-  - url: "http://192.168.24.13:3000/v1"
+  - url: "http://172.206.114.74:3000/v1"
     description: Servidor local / rede
 tags:
   - name: Readings
