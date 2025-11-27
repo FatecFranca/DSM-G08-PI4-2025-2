@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
     getDashboard,
@@ -52,6 +52,8 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import {
+    Copy,
+    Download,
     Loader2,
     DownloadCloud,
     BarChart2,
@@ -74,6 +76,7 @@ import {
     XAxis,
     YAxis,
     Tooltip,
+    Tooltip as ReTooltip,
     CartesianGrid,
     LineChart,
     Line,
@@ -649,40 +652,42 @@ export default function RunsDashboardPage() {
             {/* Modal: estatísticas da run */}
             <Dialog open={!!selectedRunForModal} onOpenChange={(open) => { if (!open) { setSelectedRunForModal(null); setRunStats(null); } }}>
                 <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            <BarChart2 className="h-5 w-5" />
-                            Estatísticas — {selectedRunForModal?.name || "Run"}
-                        </DialogTitle>
-                        <DialogDescription>
-                            {selectedRunForModal ? `ID: ${selectedRunForModal.id_run} • Bike: ${selectedRunForModal.bike_name || selectedRunForModal.bike_uuid} • Leituras: ${selectedRunForModal.total_leituras || 0}` : ""}
-                        </DialogDescription>
-                    </DialogHeader>
+                    <ScrollArea className="h-175">
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2">
+                                <BarChart2 className="h-5 w-5" />
+                                Estatísticas — {selectedRunForModal?.name || "Run"}
+                            </DialogTitle>
+                            <DialogDescription>
+                                {selectedRunForModal ? `ID: ${selectedRunForModal.id_run} • Bike: ${selectedRunForModal.bike_name || selectedRunForModal.bike_uuid} • Leituras: ${selectedRunForModal.total_leituras || 0}` : ""}
+                            </DialogDescription>
+                        </DialogHeader>
 
-                    <div className="mt-3">
-                        {loadingRunStats ? (
-                            <div className="min-h-[200px] flex items-center justify-center">
-                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                            </div>
-                        ) : runStats ? (
-                            runStats.error ? (
-                                <div className="text-red-600 text-center py-8">
-                                    <AlertTriangle className="h-8 w-8 mx-auto mb-2" />
-                                    <p className="font-medium">Erro ao carregar estatísticas</p>
-                                    <p className="text-sm mt-1">{runStats.error}</p>
+                        <div className="mt-3">
+                            {loadingRunStats ? (
+                                <div className="min-h-[200px] flex items-center justify-center">
+                                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
                                 </div>
-                            ) : (
-                                <RunStatsView stats={runStats} run={selectedRunForModal} />
-                            )
-                        ) : null}
-                    </div>
+                            ) : runStats ? (
+                                runStats.error ? (
+                                    <div className="text-red-600 text-center py-8">
+                                        <AlertTriangle className="h-8 w-8 mx-auto mb-2" />
+                                        <p className="font-medium">Erro ao carregar estatísticas</p>
+                                        <p className="text-sm mt-1">{runStats.error}</p>
+                                    </div>
+                                ) : (
+                                    <RunStatsView stats={runStats} run={selectedRunForModal} />
+                                )
+                            ) : null}
+                        </div>
+                    </ScrollArea>
 
                     <DialogFooter>
                         <Button onClick={() => { setSelectedRunForModal(null); setRunStats(null); }}>Fechar</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-        </div>
+        </div >
     );
 }
 
@@ -884,61 +889,141 @@ function RunCard({ run, isSelected, onToggleSelect, onViewStats, onExportCSV }) 
 }
 
 /* Renderiza estatísticas detalhadas (runStats) */
-function RunStatsView({ stats, run }) {
-    const freq = stats?.probabilidades?.distribuicao_frequencia || [];
+function RunStatsView({ stats = {}, run = null }) {
+    // --- dados de distribuição (chart)
+    const freq = stats?.probabilidades?.distribuicao_frequencia || []
     const chartData = freq.map((c, i) => ({
         name: c.intervalo || `Classe ${i + 1}`,
-        frequencia: typeof c.frequencia === 'number' ? c.frequencia : (c.frequencia || 0),
-    }));
+        frequencia: typeof c.frequencia === 'number' ? c.frequencia : (Number(c.frequencia) || 0)
+    }))
 
-    // Data for metrics cards
+    // --- métricas cards
+    const fmtNumber = (v, digits = 4) => {
+        if (v === null || v === undefined || Number.isNaN(Number(v))) return '-'
+        return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: digits }).format(Number(v))
+    }
+
     const metrics = [
         {
-            label: "Média",
-            value: stats?.tendencia_central?.media != null ? Number(stats.tendencia_central.media).toFixed(4) : "-",
-            desc: "Média amostral",
+            label: 'Média',
+            value: stats?.tendencia_central?.media != null ? fmtNumber(stats.tendencia_central.media) : '-',
+            desc: 'Média amostral',
             icon: TrendingUp
         },
         {
-            label: "Mediana",
-            value: stats?.tendencia_central?.mediana != null ? Number(stats.tendencia_central.mediana).toFixed(4) : "-",
-            desc: "Valor central",
+            label: 'Mediana',
+            value: stats?.tendencia_central?.mediana != null ? fmtNumber(stats.tendencia_central.mediana) : '-',
+            desc: 'Valor central',
             icon: BarChart2
         },
         {
-            label: "Desvio Padrão",
-            value: stats?.dispersao?.desvio_padrao != null ? Number(stats.dispersao.desvio_padrao).toFixed(4) : "-",
-            desc: "Dispersão dos dados",
+            label: 'Desvio Padrão',
+            value: stats?.dispersao?.desvio_padrao != null ? fmtNumber(stats.dispersao.desvio_padrao) : '-',
+            desc: 'Dispersão dos dados',
             icon: Activity
         },
         {
-            label: "Variância",
-            value: stats?.dispersao?.variancia != null ? Number(stats.dispersao.variancia).toFixed(4) : "-",
-            desc: "Variância amostral",
+            label: 'Variância',
+            value: stats?.dispersao?.variancia != null ? fmtNumber(stats.dispersao.variancia) : '-',
+            desc: 'Variância amostral',
             icon: PieChart
         },
         {
-            label: "Amostras",
+            label: 'Amostras',
             value: stats?.amostras ?? 0,
-            desc: "Nº de leituras",
+            desc: 'Nº de leituras',
             icon: Database
         },
         {
-            label: "Coef. Variação",
-            value: stats?.dispersao?.coeficiente_variacao ? `${(stats.dispersao.coeficiente_variacao * 100).toFixed(2)}%` : "-",
-            desc: "CV - Dispersão relativa",
+            label: 'Coef. Variação',
+            value: stats?.dispersao?.coeficiente_variacao
+                ? `${(Number(stats.dispersao.coeficiente_variacao) * 100).toFixed(2)}%`
+                : '-',
+            desc: 'CV - Dispersão relativa',
             icon: TrendingUp
-        },
-    ];
+        }
+    ]
 
-    // Tabela de quantis
-    const quantisData = stats?.quantis ? Object.entries(stats.quantis).map(([key, value]) => ({
-        medida: key,
-        valor: typeof value === 'number' ? value.toFixed(4) : value
-    })) : [];
+    // --- quantis: transformar objeto quantis em array; detectar percentis (objeto)
+    const rawQuantis = stats?.quantis || {}
+    // transform to array preserving objects like 'percentis'
+    const quantisArray = useMemo(() => {
+        return Object.entries(rawQuantis).map(([k, v]) => ({ medida: k, valor: v }))
+    }, [rawQuantis])
+
+    // separar percentis (objeto) e quantis simples
+    const { percentisObj, quantisSimples } = useMemo(() => {
+        const pItem = quantisArray.find(q => String(q.medida).toLowerCase() === 'percentis' || String(q.medida).toLowerCase() === 'percentile' || String(q.medida).toLowerCase().includes('percent'))
+        const simples = quantisArray.filter(q => q !== pItem)
+        return { percentisObj: pItem?.valor ?? null, quantisSimples: simples }
+    }, [quantisArray])
+
+    // entries ordenadas dos percentis: p10, p25, p50...
+    const percentisEntries = useMemo(() => {
+        if (!percentisObj || typeof percentisObj !== 'object') return []
+        return Object.entries(percentisObj)
+            .map(([k, v]) => ({ key: k, value: Number(v) }))
+            .sort((a, b) => {
+                const na = parseInt(String(a.key).replace(/[^\d]/g, ''), 10) || 0
+                const nb = parseInt(String(b.key).replace(/[^\d]/g, ''), 10) || 0
+                return na - nb
+            })
+    }, [percentisObj])
+
+    const maxPercentilValue = percentisEntries.length ? Math.max(...percentisEntries.map(p => p.value)) : 1
+
+    // copiar para clipboard com feedback
+    const [copiedId, setCopiedId] = useState(null)
+    const handleCopy = async (text, id) => {
+        try {
+            await navigator.clipboard.writeText(String(text ?? ''))
+            setCopiedId(id)
+            setTimeout(() => setCopiedId(null), 1400)
+        } catch (e) {
+            // fallback simples
+            console.error('Erro ao copiar', e)
+            alert('Não foi possível copiar para clipboard')
+        }
+    }
+
+    // exportar quantis + percentis para CSV
+    const exportQuantisCSV = () => {
+        const rows = []
+        rows.push(['Medida', 'Valor'])
+        quantisSimples.forEach(q => {
+            const val = typeof q.valor === 'number' ? q.valor : (q.valor ?? '')
+            rows.push([q.medida, val])
+        })
+        if (percentisEntries.length) {
+            rows.push([])
+            rows.push(['Percentil', 'Valor'])
+            percentisEntries.forEach(p => rows.push([p.key, p.value]))
+        }
+        const csv = rows.map(r => r.map(c => `"${String(c ?? '')}"`).join(',')).join('\n')
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `quantis_run_${run?.id_run ?? 'run'}.csv`
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        URL.revokeObjectURL(url)
+    }
+
+    // descrição padrão para medidas (caso não tenha função externa)
+    const getQuantilDescription = (medida) => {
+        const m = String(medida).toLowerCase()
+        if (m.includes('q1') || m.includes('p25')) return 'Primeiro quartil (25%)'
+        if (m.includes('q2') || m.includes('p50') || m.includes('mediana')) return 'Mediana (50%)'
+        if (m.includes('q3') || m.includes('p75')) return 'Terceiro quartil (75%)'
+        if (m.includes('p10')) return '10º percentil'
+        if (m.includes('p90')) return '90º percentil'
+        return 'Medida de posição'
+    }
 
     return (
-        <Tabs defaultValue="overview" className="space-y-6">
+        <Tabs defaultValue="overview" className="space-y-6 w-full">
             <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="overview" className="flex items-center gap-2">
                     <BarChart2 className="h-4 w-4" />
@@ -958,26 +1043,28 @@ function RunStatsView({ stats, run }) {
                 </TabsTrigger>
             </TabsList>
 
+            {/* OVERVIEW */}
             <TabsContent value="overview" className="space-y-6">
-                {/* Métricas Principais */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {metrics.map((metric, index) => (
-                        <Card key={index}>
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                                    <metric.icon className="h-4 w-4" />
-                                    {metric.label}
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-2xl font-bold">{metric.value}</div>
-                                <p className="text-xs text-muted-foreground">{metric.desc}</p>
-                            </CardContent>
-                        </Card>
-                    ))}
+                    {metrics.map((metric, i) => {
+                        const Icon = metric.icon
+                        return (
+                            <Card key={i}>
+                                <CardHeader className="pb-2">
+                                    <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                                        <Icon className="h-4 w-4" />
+                                        {metric.label}
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="text-2xl font-bold">{metric.value}</div>
+                                    <p className="text-xs text-muted-foreground">{metric.desc}</p>
+                                </CardContent>
+                            </Card>
+                        )
+                    })}
                 </div>
 
-                {/* Gráficos de Distribuição */}
                 {chartData.length > 0 && (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <Card>
@@ -991,8 +1078,8 @@ function RunStatsView({ stats, run }) {
                                             <CartesianGrid strokeDasharray="3 3" />
                                             <XAxis dataKey="name" />
                                             <YAxis />
-                                            <Tooltip />
-                                            <Bar dataKey="frequencia" fill="#4f46e5" radius={[4, 4, 0, 0]} />
+                                            <ReTooltip />
+                                            <Bar dataKey="frequencia" fill={COLORS[0]} radius={[4, 4, 0, 0]} />
                                         </BarChart>
                                     </ResponsiveContainer>
                                 </div>
@@ -1010,14 +1097,8 @@ function RunStatsView({ stats, run }) {
                                             <CartesianGrid strokeDasharray="3 3" />
                                             <XAxis dataKey="name" />
                                             <YAxis />
-                                            <Tooltip />
-                                            <Area
-                                                type="monotone"
-                                                dataKey="frequencia"
-                                                stroke="#4f46e5"
-                                                fill="#4f46e5"
-                                                fillOpacity={0.3}
-                                            />
+                                            <ReTooltip />
+                                            <Area type="monotone" dataKey="frequencia" stroke={COLORS[0]} fill={COLORS[0]} fillOpacity={0.2} />
                                         </AreaChart>
                                     </ResponsiveContainer>
                                 </div>
@@ -1027,6 +1108,7 @@ function RunStatsView({ stats, run }) {
                 )}
             </TabsContent>
 
+            {/* DISTRIBUTION */}
             <TabsContent value="distribution" className="space-y-6">
                 {chartData.length > 0 ? (
                     <>
@@ -1042,8 +1124,8 @@ function RunStatsView({ stats, run }) {
                                                 <CartesianGrid strokeDasharray="3 3" />
                                                 <XAxis dataKey="name" />
                                                 <YAxis />
-                                                <Tooltip />
-                                                <Bar dataKey="frequencia" fill="#4f46e5" radius={[4, 4, 0, 0]} />
+                                                <ReTooltip />
+                                                <Bar dataKey="frequencia" fill={COLORS[0]} radius={[4, 4, 0, 0]} />
                                             </BarChart>
                                         </ResponsiveContainer>
                                     </div>
@@ -1058,21 +1140,12 @@ function RunStatsView({ stats, run }) {
                                     <div className="h-80">
                                         <ResponsiveContainer width="100%" height="100%">
                                             <RechartsPieChart>
-                                                <Pie
-                                                    data={chartData}
-                                                    cx="50%"
-                                                    cy="50%"
-                                                    labelLine={false}
-                                                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                                                    outerRadius={80}
-                                                    fill="#8884d8"
-                                                    dataKey="frequencia"
-                                                >
+                                                <Pie data={chartData} cx="50%" cy="50%" labelLine={false} label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`} outerRadius={80} dataKey="frequencia">
                                                     {chartData.map((entry, index) => (
                                                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                                     ))}
                                                 </Pie>
-                                                <Tooltip formatter={(value) => [`${value} ocorrências`, 'Frequência']} />
+                                                <ReTooltip formatter={(value) => [`${value} ocorrências`, 'Frequência']} />
                                             </RechartsPieChart>
                                         </ResponsiveContainer>
                                     </div>
@@ -1080,7 +1153,6 @@ function RunStatsView({ stats, run }) {
                             </Card>
                         </div>
 
-                        {/* Tabela de Distribuição */}
                         <Card>
                             <CardHeader>
                                 <CardTitle>Tabela de Distribuição de Frequência</CardTitle>
@@ -1097,29 +1169,22 @@ function RunStatsView({ stats, run }) {
                                     </TableHeader>
                                     <TableBody>
                                         {chartData.map((item, index) => {
-                                            const total = chartData.reduce((sum, d) => sum + d.frequencia, 0);
-                                            const freqRelativa = ((item.frequencia / total) * 100).toFixed(2);
-                                            const freqAcumulada = chartData
-                                                .slice(0, index + 1)
-                                                .reduce((sum, d) => sum + d.frequencia, 0);
-                                            const freqAcumuladaPercent = ((freqAcumulada / total) * 100).toFixed(2);
-
+                                            const total = chartData.reduce((sum, d) => sum + d.frequencia, 0)
+                                            const freqRelativa = total ? ((item.frequencia / total) * 100).toFixed(2) : '0.00'
+                                            const freqAcumulada = chartData.slice(0, index + 1).reduce((sum, d) => sum + d.frequencia, 0)
+                                            const freqAcumuladaPercent = total ? ((freqAcumulada / total) * 100).toFixed(2) : '0.00'
                                             return (
                                                 <TableRow key={index}>
                                                     <TableCell className="font-medium">{item.name}</TableCell>
                                                     <TableCell className="text-right">{item.frequencia}</TableCell>
                                                     <TableCell className="text-right">{freqRelativa}%</TableCell>
-                                                    <TableCell className="text-right">
-                                                        {freqAcumulada} ({freqAcumuladaPercent}%)
-                                                    </TableCell>
+                                                    <TableCell className="text-right">{freqAcumulada} ({freqAcumuladaPercent}%)</TableCell>
                                                 </TableRow>
-                                            );
+                                            )
                                         })}
                                         <TableRow className="bg-muted/50">
                                             <TableCell className="font-medium">Total</TableCell>
-                                            <TableCell className="text-right font-bold">
-                                                {chartData.reduce((sum, d) => sum + d.frequencia, 0)}
-                                            </TableCell>
+                                            <TableCell className="text-right font-bold">{chartData.reduce((sum, d) => sum + d.frequencia, 0)}</TableCell>
                                             <TableCell className="text-right font-bold">100%</TableCell>
                                             <TableCell className="text-right font-bold">-</TableCell>
                                         </TableRow>
@@ -1137,40 +1202,117 @@ function RunStatsView({ stats, run }) {
                 )}
             </TabsContent>
 
+            {/* QUANTIS */}
             <TabsContent value="quantis" className="space-y-6">
-                {quantisData.length > 0 ? (
+                {quantisArray.length > 0 ? (
                     <Card>
-                        <CardHeader>
-                            <CardTitle>Tabela de Quantis e Percentis</CardTitle>
-                            <CardDescription>
-                                Medidas de posição que dividem a distribuição em partes iguais
-                            </CardDescription>
+                        <CardHeader className="flex items-start justify-between gap-4">
+                            <div>
+                                <CardTitle>Tabela de Quantis e Percentis</CardTitle>
+                                <CardDescription>Medidas de posição que dividem a distribuição em partes iguais</CardDescription>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <Tooltip content="Exportar quantis como CSV">
+                                    <Button variant="ghost" size="sm" onClick={exportQuantisCSV} title="Exportar CSV">
+                                        <Download className="h-4 w-4 mr-2" />
+                                        Exportar CSV
+                                    </Button>
+                                </Tooltip>
+                            </div>
                         </CardHeader>
-                        <CardContent>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Medida</TableHead>
-                                        <TableHead className="text-right">Valor</TableHead>
-                                        <TableHead>Descrição</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {quantisData.map((item, index) => (
-                                        <TableRow key={index}>
-                                            <TableCell className="font-medium capitalize">
-                                                {item.medida.replace(/_/g, ' ')}
-                                            </TableCell>
-                                            <TableCell className="text-right font-mono">
-                                                {item.valor}
-                                            </TableCell>
-                                            <TableCell className="text-sm text-muted-foreground">
-                                                {getQuantilDescription(item.medida)}
-                                            </TableCell>
+
+                        <CardContent className="space-y-4">
+                            {/* quantis simples */}
+                            <div>
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Medida</TableHead>
+                                            <TableHead className="text-right">Valor</TableHead>
+                                            <TableHead>Descrição</TableHead>
+                                            <TableHead className="w-28">Ações</TableHead>
                                         </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {quantisSimples.length ? (
+                                            quantisSimples.map((item, idx) => (
+                                                <TableRow key={idx}>
+                                                    <TableCell className="font-medium capitalize">{String(item.medida).replace(/_/g, ' ')}</TableCell>
+                                                    <TableCell className="text-right font-mono">
+                                                        {typeof item.valor === 'number' ? fmtNumber(item.valor) : String(item.valor ?? '-')}
+                                                    </TableCell>
+                                                    <TableCell className="text-sm text-muted-foreground">{getQuantilDescription(item.medida)}</TableCell>
+                                                    <TableCell>
+                                                        <div className="flex justify-end gap-2">
+                                                            <Tooltip content={copiedId === `q-${idx}` ? 'Copiado!' : 'Copiar'}>
+                                                                <Button size="sm" variant="outline" onClick={() => handleCopy(item.valor, `q-${idx}`)}>
+                                                                    {copiedId === `q-${idx}` ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                                                                </Button>
+                                                            </Tooltip>
+                                                        </div>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))
+                                        ) : (
+                                            <TableRow>
+                                                <TableCell colSpan={4} className="text-center text-muted-foreground py-6">
+                                                    Sem quantis simples disponíveis
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </div>
+
+                            <Separator />
+
+                            {/* percentis */}
+                            <div>
+                                <div className="flex items-center justify-between mb-3">
+                                    <h3 className="text-sm font-medium">Percentis</h3>
+                                    <p className="text-xs text-muted-foreground">Visualização rápida dos percentis (p10 → p95)</p>
+                                </div>
+
+                                {percentisEntries.length ? (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                                        {percentisEntries.map((p) => {
+                                            const isMedian = String(p.key).toLowerCase().includes('50')
+                                            const widthPct = maxPercentilValue > 0 ? Math.max(6, Math.round((p.value / maxPercentilValue) * 100)) : 6
+                                            return (
+                                                <Card key={p.key} className="p-3">
+                                                    <div className="flex items-start justify-between gap-2">
+                                                        <div>
+                                                            <div className="text-xs text-muted-foreground">{String(p.key).toUpperCase()}</div>
+                                                            <div className="text-lg font-bold font-mono">{fmtNumber(p.value)}</div>
+                                                        </div>
+
+                                                        <div className="flex items-center gap-2">
+                                                            {isMedian && <span className="text-xs px-2 py-1 bg-green-100 text-green-800 rounded-md">Mediana</span>}
+                                                            <Tooltip content={copiedId === `p-${p.key}` ? 'Copiado!' : 'Copiar'}>
+                                                                <Button size="sm" variant="ghost" onClick={() => handleCopy(p.value, `p-${p.key}`)}>
+                                                                    {copiedId === `p-${p.key}` ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                                                                </Button>
+                                                            </Tooltip>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="mt-3">
+                                                        <div className="h-2 bg-muted rounded-full overflow-hidden">
+                                                            <div style={{ width: `${widthPct}%` }} className="h-2 rounded-full bg-gradient-to-r from-indigo-500 to-indigo-300" />
+                                                        </div>
+                                                        <div className="mt-1 text-xs text-muted-foreground">relativo a {fmtNumber(maxPercentilValue)}</div>
+                                                    </div>
+                                                </Card>
+                                            )
+                                        })}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-8 text-muted-foreground">
+                                        <p>Sem percentis disponíveis</p>
+                                    </div>
+                                )}
+                            </div>
                         </CardContent>
                     </Card>
                 ) : (
@@ -1187,21 +1329,131 @@ function RunStatsView({ stats, run }) {
                     <Card>
                         <CardHeader>
                             <CardTitle>Inferência Estatística</CardTitle>
-                            <CardDescription>
-                                Resultados dos testes de hipóteses e intervalos de confiança
-                            </CardDescription>
+                            <CardDescription>Resultados dos testes de hipóteses e intervalos de confiança</CardDescription>
                         </CardHeader>
+
                         <CardContent>
                             {stats?.inferencia && Object.keys(stats.inferencia).length > 0 ? (
-                                <div className="space-y-4">
-                                    {Object.entries(stats.inferencia).map(([key, value]) => (
-                                        <div key={key} className="flex justify-between items-center py-2 border-b">
-                                            <span className="font-medium capitalize">{key.replace(/_/g, ' ')}</span>
-                                            <span className="font-mono text-sm">
-                                                {typeof value === 'number' ? value.toFixed(4) : String(value)}
-                                            </span>
+                                <div className="space-y-6">
+                                    {/* Intervalo de Confiança */}
+                                    {stats.inferencia.intervalo_confianca && (
+                                        (() => {
+                                            const ic = stats.inferencia.intervalo_confianca;
+                                            const nivel = ic.nivel_confianca ?? ic.nivel ?? 0.95;
+                                            const minimo = Array.isArray(ic.intervalo) ? Number(ic.intervalo[0]) : Number(ic.intervalo?.min ?? ic.intervalo?.[0]);
+                                            const maximo = Array.isArray(ic.intervalo) ? Number(ic.intervalo[1]) : Number(ic.intervalo?.max ?? ic.intervalo?.[1]);
+                                            const media = Number(ic.media_amostral ?? ic.media ?? ic.media_amostral);
+                                            const margem = Number(ic.margem_erro ?? ic.margemErro ?? ic.margem);
+                                            const sd = ic.desvio_padrao ?? ic.sd ?? null;
+                                            const tamanho = ic.tamanho_amostra ?? ic.tamanho ?? ic.tamanho_amostral ?? stats.amostras ?? 0;
+                                            // normaliza para mini barra (proteção contra divide by zero)
+                                            const range = (Number.isFinite(minimo) && Number.isFinite(maximo) && maximo > minimo) ? (maximo - minimo) : 1;
+                                            const leftPct = Number.isFinite(minimo) ? Math.max(0, Math.round(((minimo - (media - range)) / (range * 3)) * 100)) : 0;
+                                            const widthPct = Number.isFinite(minimo) && Number.isFinite(maximo) ? Math.max(6, Math.round(((maximo - minimo) / (range * 3)) * 100)) : 50;
+
+                                            const fmt = (v) => {
+                                                if (v === null || v === undefined || Number.isNaN(Number(v))) return '-';
+                                                return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 4 }).format(Number(v));
+                                            };
+
+                                            return (
+                                                <div className="space-y-3 border rounded-md p-4">
+                                                    <div className="flex items-start justify-between gap-4">
+                                                        <div>
+                                                            <div className="text-sm text-muted-foreground">Intervalo de Confiança</div>
+                                                            <div className="text-lg font-bold">{fmt(minimo)} — {fmt(maximo)}</div>
+                                                            <div className="text-xs text-muted-foreground mt-1">
+                                                                Nível de confiança: {(Number(nivel) * 100).toFixed(0)}% • Distribuição: <span className="font-medium">{ic.distribuicao_utilizada ?? ic.distribuicao ?? '-'}</span>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="text-right">
+                                                            <div className="text-xs text-muted-foreground">Tamanho da amostra</div>
+                                                            <div className="font-bold">{tamanho}</div>
+                                                            <div className="text-xs text-muted-foreground mt-2">Margem de erro</div>
+                                                            <div className="font-mono font-medium">{fmt(margem)}</div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* mini barra visual do intervalo */}
+                                                    <div className="mt-3">
+                                                        <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                                                            <div
+                                                                className="h-2 rounded-full bg-gradient-to-r from-indigo-500 to-indigo-300"
+                                                                style={{ width: `${widthPct}%`, marginLeft: `${leftPct}%` }}
+                                                            />
+                                                        </div>
+                                                        <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
+                                                            <div>média amostral: <span className="font-mono ml-1">{fmt(media)}</span></div>
+                                                            {sd !== null && <div>σ ≈ <span className="font-mono ml-1">{fmt(sd)}</span></div>}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()
+                                    )}
+
+                                    {/* Teste de Normalidade */}
+                                    {stats.inferencia.teste_normalidade && (
+                                        (() => {
+                                            const tn = stats.inferencia.teste_normalidade;
+                                            const stat = Number(tn.estatistica);
+                                            const pvalue = Number(tn.valor_p ?? tn.p_value ?? tn.pvalor ?? tn.p);
+                                            const interpret = tn.interpretacao ?? tn.interpretacao ?? tn.normalidade ?? '';
+                                            const normalidadeText = tn.normalidade ?? tn.interpretacao ?? '';
+                                            const isNormal = typeof normalidadeText === 'string' && /normal/i.test(normalidadeText);
+
+                                            const fmt = (v) => {
+                                                if (v === null || v === undefined || Number.isNaN(Number(v))) return '-';
+                                                return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 4, maximumFractionDigits: 4 }).format(Number(v));
+                                            };
+
+                                            return (
+                                                <div className="space-y-2 border rounded-md p-4">
+                                                    <div className="flex items-center justify-between gap-4">
+                                                        <div>
+                                                            <div className="text-sm text-muted-foreground">Teste de Normalidade</div>
+                                                            <div className="text-lg font-semibold">{tn.normalidade ?? tn.interpretacao ?? 'Resultado'}</div>
+                                                            <div className="text-xs text-muted-foreground mt-1">{tn.descricao ?? ''}</div>
+                                                        </div>
+
+                                                        <div className="text-right flex flex-col items-end gap-2">
+                                                            <Badge variant={isNormal ? 'secondary' : 'destructive'} className="text-xs">
+                                                                {isNormal ? 'Provavelmente normal' : 'Não normal'}
+                                                            </Badge>
+                                                            <div className="text-xs text-muted-foreground">p-valor</div>
+                                                            <div className="font-mono">{fmt(pvalue)}</div>
+                                                            <div className="text-xs text-muted-foreground">Estatística</div>
+                                                            <div className="font-mono">{fmt(stat)}</div>
+                                                        </div>
+                                                    </div>
+
+                                                    {tn.interpretacao && (
+                                                        <div className="mt-2 text-sm text-muted-foreground">
+                                                            <strong>Interpretação:</strong> {tn.interpretacao}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })()
+                                    )}
+
+                                    {/* Outros campos de inferência — fallback */}
+                                    {Object.entries(stats.inferencia).filter(([k]) => k !== 'intervalo_confianca' && k !== 'teste_normalidade').length > 0 && (
+                                        <div className="space-y-2 border rounded-md p-3">
+                                            <div className="text-sm text-muted-foreground mb-2">Outros resultados</div>
+                                            <div className="space-y-2">
+                                                {Object.entries(stats.inferencia).filter(([k]) => k !== 'intervalo_confianca' && k !== 'teste_normalidade').map(([key, value]) => (
+                                                    <div key={key} className="flex justify-between items-center py-2 border-b last:border-b-0">
+                                                        <span className="font-medium capitalize">{key.replace(/_/g, ' ')}</span>
+                                                        <span className="font-mono text-sm">
+                                                            {typeof value === 'number' ? Number(value).toFixed(4) : (typeof value === 'string' ? value : JSON.stringify(value))}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
-                                    ))}
+                                    )}
                                 </div>
                             ) : (
                                 <div className="text-center py-8 text-muted-foreground">
@@ -1215,9 +1467,7 @@ function RunStatsView({ stats, run }) {
                     <Card>
                         <CardHeader>
                             <CardTitle>Dados Brutos</CardTitle>
-                            <CardDescription>
-                                Estrutura completa dos dados estatísticos
-                            </CardDescription>
+                            <CardDescription>Estrutura completa dos dados estatísticos</CardDescription>
                         </CardHeader>
                         <CardContent>
                             <ScrollArea className="h-80">
@@ -1230,7 +1480,7 @@ function RunStatsView({ stats, run }) {
                 </div>
             </TabsContent>
         </Tabs>
-    );
+    )
 }
 
 /* Função auxiliar para descrições de quantis */

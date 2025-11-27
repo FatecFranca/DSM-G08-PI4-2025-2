@@ -52,6 +52,9 @@ export default function BikesPage() {
     const [createError, setCreateError] = useState(null);
     const [createSuccess, setCreateSuccess] = useState(null);
 
+    const [tab, setTab] = useState("list");
+
+
     // checa token e redireciona se necessário
     useEffect(() => {
         try {
@@ -178,7 +181,7 @@ export default function BikesPage() {
                     </Badge>
                 </div>
 
-                <Tabs defaultValue="list" className="space-y-6">
+                <Tabs value={tab} onValueChange={setTab} className="space-y-6">
                     <TabsList className="grid w-full max-w-md grid-cols-2">
                         <TabsTrigger value="list" className="flex items-center gap-2">
                             <Bike className="h-4 w-4" />
@@ -216,7 +219,7 @@ export default function BikesPage() {
                                         </div>
                                     </div>
                                 ) : bikes.length === 0 ? (
-                                    <EmptyState onAddBike={() => document.querySelector('[data-value="add"]').click()} />
+                                    <EmptyState onAddBike={() => setTab("add")} />
                                 ) : (
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                         {bikes.map((bike) => (

@@ -65,6 +65,10 @@ export default function RunsPage() {
     const [activeLast, setActiveLast] = useState(null);
     const pollingRef = useRef(null);
 
+    // logo abaixo dos outros useState
+    const [tab, setTab] = useState("active");
+
+
     // check auth
     useEffect(() => {
         try {
@@ -305,7 +309,7 @@ export default function RunsPage() {
                     )}
                 </div>
 
-                <Tabs defaultValue="active" className="space-y-6">
+                <Tabs value={tab} onValueChange={setTab} className="space-y-6">
                     <TabsList className="grid w-full max-w-md grid-cols-3">
                         <TabsTrigger value="active" className="flex items-center gap-2">
                             <PlayCircle className="h-4 w-4" />
@@ -459,7 +463,7 @@ export default function RunsPage() {
                                 onFetchMetrics={handleFetchMetrics}
                             />
                         ) : (
-                            <EmptyActiveState />
+                            <EmptyActiveState onStart={() => setTab("new")} />
                         )}
                     </TabsContent>
 
@@ -490,7 +494,7 @@ export default function RunsPage() {
                                         <p className="text-red-700 text-sm mt-1">{error}</p>
                                     </div>
                                 ) : runs.filter(r => !(r.status === "active" || r.status === "started")).length === 0 ? (
-                                    <EmptyHistoryState />
+                                    <EmptyHistoryState onStart={() => setTab("new")} />
                                 ) : (
                                     <ScrollArea className="h-[600px]">
                                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pr-4">
@@ -515,9 +519,145 @@ export default function RunsPage() {
     );
 }
 
+/* ----------------- Helpers & Sparkline ----------------- */
+const fmtDate = (iso) => {
+    if (!iso) return "—";
+    try {
+        return new Date(iso).toLocaleString("pt-BR");
+    } catch (e) {
+        return String(iso);
+    }
+};
+const fmtDuration = (s) => {
+    if (s == null) return "—";
+    const sec = Number(s);
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const r = sec % 60;
+    return (h ? h + "h " : "") + (m ? m + "m " : "") + r + "s";
+};
+const fmtDistance = (m) => {
+    if (m == null) return "—";
+    if (m >= 1000) return (m / 1000).toFixed(2) + " km";
+    return m + " m";
+};
+const fmtNum = (v, digits = 1) => (v == null ? "—" : Number(v).toFixed(digits));
+
+function Sparkline({ data }) {
+    const ref = useRef(null);
+    useEffect(() => {
+        const canvas = ref.current;
+        if (!canvas) return;
+        const DPR = window.devicePixelRatio || 1;
+        canvas.width = canvas.clientWidth * DPR;
+        canvas.height = canvas.clientHeight * DPR;
+        const ctx = canvas.getContext("2d");
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (!data || data.length === 0) {
+            ctx.fillStyle = "rgba(255,255,255,0.06)";
+            ctx.font = `${12 * DPR}px sans-serif`;
+            ctx.fillText("Sem dados para gráfico", 8 * DPR, canvas.height / 2);
+            return;
+        }
+        const pad = 6 * DPR;
+        const min = Math.min(...data);
+        const max = Math.max(...data);
+        const range = Math.max(0.1, max - min);
+        ctx.beginPath();
+        data.forEach((v, i) => {
+            const x = pad + (i / (data.length - 1)) * (canvas.width - pad * 2);
+            const y = canvas.height - pad - ((v - min) / range) * (canvas.height - pad * 2);
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.lineWidth = 2 * DPR;
+        ctx.strokeStyle = "rgba(96,165,250,0.95)";
+        ctx.stroke();
+        ctx.lineTo(canvas.width - pad, canvas.height - pad);
+        ctx.lineTo(pad, canvas.height - pad);
+        ctx.closePath();
+        ctx.fillStyle = "rgba(96,165,250,0.08)";
+        ctx.fill();
+    }, [data]);
+
+    return <canvas ref={ref} className="w-full h-20 rounded" />;
+}
+
 /* Componente para Corrida Ativa */
 function ActiveRunView({ run, onStop, activeLast, onFetchMetrics }) {
     const [metrics, setMetrics] = useState(null);
+    const [showRawLast, setShowRawLast] = useState(false);
+    const [showRawMetrics, setShowRawMetrics] = useState(false);
+
+    // auto-update toggle e ref para interval
+    const [autoUpdateMetrics, setAutoUpdateMetrics] = useState(true);
+    const pollingMetricsRef = useRef(null);
+
+    // derive useful numbers (safe)
+    // PRIORIDADE: activeLast (ao vivo) -> metrics (fetch) -> run (fallback)
+    const avgKmh = activeLast?.avg_kmh ?? activeLast?.kmh ?? metrics?.avg_kmh ?? run.avg_kmh ?? null;
+    const maxKmh = activeLast?.max_kmh ?? run.max_kmh ?? metrics?.max_kmh ?? null;
+    const readingsCount = activeLast?.readings_count ?? run.readings_count ?? metrics?.readings_count ?? 0;
+    const distance_m = activeLast?.distance_m ?? run.distance_m ?? metrics?.distance_m ?? 0;
+    const duration_s = activeLast?.duration_s ?? run.duration_s ?? metrics?.duration_s ?? 0;
+
+    // build sparkline data from activeLast.last (if array) or from metrics.series
+    const series = (() => {
+        if (!activeLast) return [];
+        if (Array.isArray(activeLast.last)) return activeLast.last.map(x => (x.kmh ?? x.speed ?? null)).filter(v => v != null);
+        if (Array.isArray(activeLast.samples)) return activeLast.samples.map(x => (x.kmh ?? x.speed ?? null)).filter(v => v != null);
+        if (activeLast.kmh != null) return [activeLast.kmh];
+        return [];
+    })();
+
+    // função para fazer fetch imediato de métricas (com try/catch)
+    async function fetchMetricsNow() {
+        try {
+            await onFetchMetrics(run.id_run, setMetrics);
+        } catch (err) {
+            console.error('Erro ao buscar métricas (auto):', err);
+        }
+    }
+
+    // iniciar/limpar polling de métricas quando autoUpdateMetrics mudar ou run mudar
+    useEffect(() => {
+        // sempre buscar imediatamente ao mudar run ou habilitar auto-update
+        let mounted = true;
+
+        if (!run || !onFetchMetrics) return;
+
+        // se autoUpdate ligado, faz fetch imediato e agenda interval
+        if (autoUpdateMetrics) {
+            fetchMetricsNow();
+
+            // safety: limpa se já houver
+            if (pollingMetricsRef.current) {
+                clearInterval(pollingMetricsRef.current);
+                pollingMetricsRef.current = null;
+            }
+
+            pollingMetricsRef.current = setInterval(() => {
+                // não faz nada se componente desmontado
+                if (!mounted) return;
+                fetchMetricsNow();
+            }, 5000); // 5s (ajuste se quiser menor/maior)
+        } else {
+            // se desligou autoUpdate, limpa interval mas mantém metrics atuais
+            if (pollingMetricsRef.current) {
+                clearInterval(pollingMetricsRef.current);
+                pollingMetricsRef.current = null;
+            }
+        }
+
+        return () => {
+            mounted = false;
+            if (pollingMetricsRef.current) {
+                clearInterval(pollingMetricsRef.current);
+                pollingMetricsRef.current = null;
+            }
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [run?.id_run, autoUpdateMetrics, onFetchMetrics]);
 
     return (
         <div className="space-y-6">
@@ -542,84 +682,146 @@ function ActiveRunView({ run, onStop, activeLast, onFetchMetrics }) {
                                 <span>•</span>
                                 <span className="flex items-center gap-1">
                                     <Calendar className="h-4 w-4" />
-                                    Iniciada: {run.started_at ? new Date(run.started_at).toLocaleString('pt-BR') : "—"}
+                                    Iniciada: {run.started_at ? fmtDate(run.started_at) : "—"}
                                 </span>
                             </CardDescription>
                         </div>
-                        <Button
-                            variant="destructive"
-                            onClick={() => onStop(run.id_run, run.bike_uuid)}
-                            className="flex items-center gap-2"
-                        >
-                            <StopCircle className="h-4 w-4" />
-                            Parar Corrida
-                        </Button>
+                        <div className="flex flex-col items-end gap-3">
+                            <div className="text-right">
+                                <div className="text-sm text-muted-foreground">Velocidade média</div>
+                                <div className="text-3xl font-bold text-green-600">{avgKmh != null ? fmtNum(avgKmh, 1) + ' km/h' : '—'}</div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    variant="destructive"
+                                    onClick={() => onStop(run.id_run, run.bike_uuid)}
+                                    className="flex items-center gap-2"
+                                >
+                                    <StopCircle className="h-4 w-4" />
+                                    Parar
+                                </Button>
+
+                                {/* Toggle Auto-Update */}
+                                <Button
+                                    size="sm"
+                                    variant={autoUpdateMetrics ? "default" : "outline"}
+                                    onClick={() => setAutoUpdateMetrics(v => !v)}
+                                    className="h-8 flex items-center gap-2"
+                                    title={autoUpdateMetrics ? "Auto-update ligado" : "Auto-update desligado"}
+                                >
+                                    <Zap className="h-4 w-4" />
+                                    {autoUpdateMetrics ? "Auto ON" : "Auto OFF"}
+                                </Button>
+
+                                {/* Manual refresh still available */}
+                                <Button size="sm" variant="outline" onClick={() => fetchMetricsNow()}>
+                                    Atualizar Métricas
+                                </Button>
+                            </div>
+                        </div>
                     </div>
                 </CardHeader>
 
                 <CardContent>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                        <div className="text-center p-4 bg-muted/20 rounded-lg">
-                            <div className="text-2xl font-bold text-green-600">
-                                {run.circunferencia_m}m
-                            </div>
-                            <div className="text-sm text-muted-foreground">Circunferência</div>
+                        <div className="p-4 rounded-lg bg-muted/10 text-center">
+                            <div className="text-xs text-muted-foreground">Leituras</div>
+                            <div className="text-xl font-bold">{readingsCount}</div>
                         </div>
-                        <div className="text-center p-4 bg-muted/20 rounded-lg">
-                            <div className="text-2xl font-bold">
-                                #{run.id_run}
-                            </div>
-                            <div className="text-sm text-muted-foreground">ID da Corrida</div>
+
+                        <div className="p-4 rounded-lg bg-muted/10 text-center">
+                            <div className="text-xs text-muted-foreground">Máx km/h</div>
+                            <div className="text-xl font-bold">{maxKmh != null ? fmtNum(maxKmh, 1) + ' km/h' : '—'}</div>
                         </div>
-                        <div className="text-center p-4 bg-muted/20 rounded-lg">
-                            <div className="text-2xl font-bold">
-                                {activeLast ? "Recebendo" : "Aguardando"}
-                            </div>
-                            <div className="text-sm text-muted-foreground">Dados</div>
+
+                        <div className="p-4 rounded-lg bg-muted/10 text-center">
+                            <div className="text-xs text-muted-foreground">Distância • Duração</div>
+                            <div className="text-xl font-bold">{fmtDistance(distance_m)} • {fmtDuration(duration_s)}</div>
                         </div>
                     </div>
 
-                    {/* Última Leitura */}
-                    {activeLast && (
-                        <div className="mb-6">
-                            <h4 className="font-medium mb-3 flex items-center gap-2">
-                                <MapPin className="h-4 w-4" />
-                                Última Leitura em Tempo Real
-                            </h4>
-                            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                                <pre className="text-sm overflow-auto max-h-40">
-                                    {JSON.stringify(activeLast, null, 2)}
-                                </pre>
+                    {/* Sparkline + last reading quick view */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                        <div className="md:col-span-2 bg-muted/5 border rounded-lg p-4">
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="text-sm font-medium flex items-center gap-2"><BarChart3 className="h-4 w-4" />Últimas velocidades</div>
+                                <div className="text-xs text-muted-foreground">Última atualização: {activeLast ? fmtDate(activeLast?.updated_at || activeLast?.timestamp || activeLast?.time || new Date().toISOString()) : '—'}</div>
                             </div>
-                        </div>
-                    )}
-
-                    {/* Métricas */}
-                    <div>
-                        <div className="flex items-center justify-between mb-3">
-                            <h4 className="font-medium flex items-center gap-2">
-                                <BarChart3 className="h-4 w-4" />
-                                Métricas da Corrida
-                            </h4>
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => onFetchMetrics(run.id_run, setMetrics)}
-                            >
-                                Atualizar Métricas
-                            </Button>
+                            <Sparkline data={series} />
                         </div>
 
+                        <div className="bg-muted/5 border rounded-lg p-4">
+                            <div className="text-sm font-medium mb-2">Última Leitura</div>
+                            {activeLast ? (
+                                <div className="space-y-2 text-sm">
+                                    <div><strong>km/h:</strong> {activeLast.kmh ?? activeLast.speed ?? '—'}</div>
+                                    {activeLast.latitude && activeLast.longitude && (
+                                        <div><strong>Local:</strong> {Number(activeLast.latitude).toFixed(5)}, {Number(activeLast.longitude).toFixed(5)}</div>
+                                    )}
+                                    {activeLast.timestamp && <div><strong>Hora:</strong> {fmtDate(activeLast.timestamp)}</div>}
+                                    {activeLast.count != null && <div><strong>Contagem:</strong> {activeLast.count}</div>}
+
+                                    <div className="pt-2 flex gap-2">
+                                        <Button size="sm" variant="outline" onClick={() => navigator.clipboard?.writeText(JSON.stringify(activeLast, null, 2))}>
+                                            Copiar Leitura (JSON)
+                                        </Button>
+                                        <Button size="sm" variant="ghost" onClick={() => setShowRawLast(s => !s)}>
+                                            {showRawLast ? "Esconder JSON" : "Mostrar JSON"}
+                                        </Button>
+                                    </div>
+
+                                    {showRawLast && (
+                                        <div className="mt-2 p-2 bg-black/10 rounded text-xs overflow-auto max-h-44">
+                                            <pre className="whitespace-pre-wrap text-xs">{JSON.stringify(activeLast, null, 2)}</pre>
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="text-sm text-muted-foreground">Aguardando primeira leitura...</div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Métricas expandidas */}
+                    <div className="mt-6">
+                        <h4 className="font-medium flex items-center gap-2 mb-2"><BarChart3 className="h-4 w-4" />Métricas</h4>
                         {metrics ? (
                             <div className="bg-muted/10 border rounded-lg p-4">
-                                <pre className="text-sm overflow-auto max-h-60">
-                                    {JSON.stringify(metrics, null, 2)}
-                                </pre>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                                    <div>
+                                        <div className="text-xs text-muted-foreground">avg_kmh</div>
+                                        <div className="font-medium">{fmtNum(metrics.avg_kmh ?? avgKmh, 1)}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-xs text-muted-foreground">distance_m</div>
+                                        <div className="font-medium">{fmtDistance(metrics.distance_m ?? distance_m)}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-xs text-muted-foreground">duration_s</div>
+                                        <div className="font-medium">{fmtDuration(metrics.duration_s ?? duration_s)}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-xs text-muted-foreground">readings_count</div>
+                                        <div className="font-medium">{metrics.readings_count ?? readingsCount}</div>
+                                    </div>
+                                </div>
+
+                                <div className="mt-3 flex gap-2">
+                                    <Button size="sm" variant="outline" onClick={() => navigator.clipboard?.writeText(JSON.stringify(metrics, null, 2))}>Copiar métricas (JSON)</Button>
+                                    <Button size="sm" variant="ghost" onClick={() => setShowRawMetrics(s => !s)}>{showRawMetrics ? "Esconder JSON" : "Mostrar JSON"}</Button>
+                                </div>
+
+                                {showRawMetrics && (
+                                    <div className="mt-3 p-2 bg-black/10 rounded text-xs overflow-auto max-h-44">
+                                        <pre className="whitespace-pre-wrap text-xs">{JSON.stringify(metrics, null, 2)}</pre>
+                                    </div>
+                                )}
                             </div>
                         ) : (
-                            <div className="text-center py-8 text-muted-foreground border rounded-lg">
+                            <div className="text-center py-6 text-muted-foreground border rounded-lg">
                                 <BarChart3 className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                                <p>Clique em "Atualizar Métricas" para ver os dados</p>
+                                <p className="text-sm">As métricas são atualizadas automaticamente (ou clique em "Atualizar Métricas")</p>
                             </div>
                         )}
                     </div>
@@ -744,7 +946,7 @@ function RunCard({ run, onFetchMetrics }) {
 }
 
 /* Empty States */
-function EmptyActiveState() {
+function EmptyActiveState({ onStart }) {
     return (
         <Card>
             <CardContent className="py-12">
@@ -757,7 +959,7 @@ function EmptyActiveState() {
                         Inicie uma nova corrida para começar a coletar dados em tempo real.
                     </p>
                     <Button
-                        onClick={() => document.querySelector('[data-value="new"]').click()}
+                        onClick={onStart}
                         className="flex items-center gap-2 mx-auto"
                     >
                         <PlayCircle className="h-4 w-4" />
@@ -769,7 +971,7 @@ function EmptyActiveState() {
     );
 }
 
-function EmptyHistoryState() {
+function EmptyHistoryState({ onStart }) {
     return (
         <div className="text-center py-12">
             <div className="mx-auto w-16 h-16 bg-muted/20 rounded-full flex items-center justify-center mb-4">
@@ -780,7 +982,7 @@ function EmptyHistoryState() {
                 Suas corridas finalizadas aparecerão aqui para análise e consulta.
             </p>
             <Button
-                onClick={() => document.querySelector('[data-value="new"]').click()}
+                onClick={onStart}
                 variant="outline"
                 className="flex items-center gap-2 mx-auto"
             >
@@ -791,7 +993,6 @@ function EmptyHistoryState() {
     );
 }
 
-// Missing icon components
 const Plus = ({ className }) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>;
 const Hash = ({ className }) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" /></svg>;
 const Ruler = ({ className }) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m-6 4h6m-6 4h6M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" /></svg>;
