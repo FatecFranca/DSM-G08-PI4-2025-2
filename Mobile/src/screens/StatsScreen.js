@@ -12,9 +12,6 @@ export default function StatsScreen({ navigation }) {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // ==========================
-  // LOAD RUNS FROM API
-  // ==========================
   useEffect(() => {
     loadRuns();
   }, []);
@@ -29,69 +26,50 @@ export default function StatsScreen({ navigation }) {
     setLoading(false);
   };
 
-  // ==========================================================
-  // SIMULA VELOCIDADES REALISTAS PARA A CORRIDA ESCOLHIDA
-  // ==========================================================
-  const generateSpeeds = () => {
-    const size = Math.floor(Math.random() * 40) + 30;
-    const base = Math.random() * 5 + 20; // 20–25 km/h
-    let values = [];
+  // ============================
+  // CARREGA AS ESTATÍSTICAS REAIS DA API
+  // ============================
+  const selectRun = async (run) => {
+    try {
+      setSelectedRun(run);
 
-    for (let i = 0; i < size; i++) {
-      const variation = (Math.random() - 0.5) * 6;
-      values.push(Number((base + variation).toFixed(2)));
+      const res = await api.get(`/estatisticas/run/${run.id_run}`);
+      const dados = res.data?.data ?? {};
+
+      setStats({
+        mean: dados.tendencia_central?.media ?? 0,
+        median: dados.tendencia_central?.mediana ?? 0,
+        mode: Array.isArray(dados.tendencia_central?.moda)
+          ? (dados.tendencia_central.moda[0] ?? 0)
+          : 0,
+
+        stdDev: dados.dispersao?.desvio_padrao ?? 0,
+        cv: dados.dispersao?.coeficiente_variacao ?? 0,
+
+        q1: dados.quantis?.q1 ?? 0,
+        q2: dados.quantis?.q2 ?? 0,
+        q3: dados.quantis?.q3 ?? 0,
+
+        min: dados.extremos?.minimo ?? 0,
+        max: dados.extremos?.maximo ?? 0
+      });
+
+    } catch (err) {
+      console.log("Erro ao carregar estatísticas:", err);
+
+      setStats({
+        mean: 0,
+        median: 0,
+        mode: 0,
+        stdDev: 0,
+        cv: 0,
+        q1: 0,
+        q2: 0,
+        q3: 0,
+        min: 0,
+        max: 0
+      });
     }
-
-    return values;
-  };
-
-  // =========================================================
-  // CALCULOS
-  // =========================================================
-  const calculateStats = (values) => {
-    if (!values || values.length === 0) return null;
-
-    const mean = values.reduce((a, b) => a + b, 0) / values.length;
-
-    const sorted = [...values].sort((a, b) => a - b);
-
-    const median =
-      sorted.length % 2 === 0
-        ? (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2
-        : sorted[Math.floor(sorted.length / 2)];
-
-    const freq = {};
-    sorted.forEach(v => (freq[v] = (freq[v] || 0) + 1));
-    const mode = Object.keys(freq).reduce((a, b) => (freq[a] > freq[b] ? a : b));
-
-    const variance = values.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / values.length;
-    const stdDev = Math.sqrt(variance);
-    const cv = (stdDev / mean) * 100;
-
-    const q1 = sorted[Math.floor(sorted.length * 0.25)];
-    const q2 = median;
-    const q3 = sorted[Math.floor(sorted.length * 0.75)];
-
-    return {
-      values,
-      mean,
-      median,
-      mode,
-      stdDev,
-      cv,
-      q1,
-      q2,
-      q3,
-      min: sorted[0],
-      max: sorted[sorted.length - 1],
-    };
-  };
-
-  const selectRun = (run) => {
-    setSelectedRun(run);
-    const simulated = generateSpeeds();
-    const calculated = calculateStats(simulated);
-    setStats(calculated);
   };
 
   if (loading) {
@@ -104,15 +82,13 @@ export default function StatsScreen({ navigation }) {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
-      
-      {/* VOLTAR */}
+
       <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginBottom: 10 }}>
         <Text style={styles.backText}>← Voltar</Text>
       </TouchableOpacity>
 
       <Text style={styles.title}>Estatísticas</Text>
 
-      {/* LISTA DE CORRIDAS */}
       <Text style={styles.subtitle}>Selecione uma corrida</Text>
 
       {runs.map(r => (
@@ -128,45 +104,41 @@ export default function StatsScreen({ navigation }) {
         </TouchableOpacity>
       ))}
 
-      {!selectedRun && <Text style={styles.empty}>Nenhuma corrida selecionada.</Text>}
+      {!selectedRun && (
+        <Text style={styles.empty}>Nenhuma corrida selecionada.</Text>
+      )}
 
-      {/* ESTATÍSTICAS / PIE CHART */}
+      {/* SE TEM ESTATÍSTICAS, MOSTRA */}      
       {stats && (
         <>
-          {/* GRÁFICO DE PIZZA */}
+
+          {/* GRÁFICO DE PIZZA REAL */} 
           <PieChart
             data={[
               {
-                name: "Lento (<20)",
-                population: stats.values.filter(v => v < 20).length,
-                color: "#ff9999",
-                legendFontColor: "#444",
-                legendFontSize: 14
+                name: "Média",
+                population: stats.mean,
+                color: "#b30000",
+                legendFontColor: "#333",
+                legendFontSize: 13
               },
               {
-                name: "Moderado (20-25)",
-                population: stats.values.filter(v => v >= 20 && v < 25).length,
-                color: "#ff6666",
-                legendFontColor: "#444",
-                legendFontSize: 14
+                name: "Mediana",
+                population: stats.median,
+                color: "#ff7777",
+                legendFontColor: "#333",
+                legendFontSize: 13
               },
               {
-                name: "Rápido (25-30)",
-                population: stats.values.filter(v => v >= 25 && v < 30).length,
-                color: "#cc0000",
-                legendFontColor: "#444",
-                legendFontSize: 14
-              },
-              {
-                name: "Muito rápido (30+)",
-                population: stats.values.filter(v => v >= 30).length,
-                color: "#990000",
-                legendFontColor: "#444",
-                legendFontSize: 14
+                name: "Moda",
+                population: Number(stats.mode),
+                color: "#ffb3b3",
+                legendFontColor: "#333",
+                legendFontSize: 13
               }
             ]}
             width={screenWidth - 20}
-            height={260}
+            height={220}
             chartConfig={{
               backgroundGradientFrom: "#fff",
               backgroundGradientTo: "#fff",
@@ -175,34 +147,39 @@ export default function StatsScreen({ navigation }) {
             accessor={"population"}
             backgroundColor={"transparent"}
             paddingLeft={"10"}
-            center={[0, 5]}
+            center={[0, 8]}
           />
 
-          {/* CARDS */}
+          {/* CARDS PRINCIPAIS */}
           <View style={styles.row}>
             <View style={styles.card}>
               <Text style={styles.cardLabel}>Média</Text>
               <Text style={styles.cardValue}>{stats.mean.toFixed(2)}</Text>
             </View>
+
             <View style={styles.card}>
               <Text style={styles.cardLabel}>Mediana</Text>
               <Text style={styles.cardValue}>{stats.median.toFixed(2)}</Text>
             </View>
+
             <View style={styles.card}>
               <Text style={styles.cardLabel}>Moda</Text>
               <Text style={styles.cardValue}>{stats.mode}</Text>
             </View>
           </View>
 
+          {/* OUTROS DADOS */}
           <View style={styles.row}>
             <View style={styles.card}>
               <Text style={styles.cardLabel}>Desvio Padrão</Text>
               <Text style={styles.cardValue}>{stats.stdDev.toFixed(2)}</Text>
             </View>
+
             <View style={styles.card}>
               <Text style={styles.cardLabel}>Coef. Variação</Text>
               <Text style={styles.cardValue}>{stats.cv.toFixed(1)}%</Text>
             </View>
+
             <View style={styles.card}>
               <Text style={styles.cardLabel}>IQR</Text>
               <Text style={styles.cardValue}>{(stats.q3 - stats.q1).toFixed(2)}</Text>
@@ -214,7 +191,6 @@ export default function StatsScreen({ navigation }) {
             <Text style={styles.boxTitle}>Extremos</Text>
             <Text style={styles.boxText}>Mínimo: {stats.min}</Text>
             <Text style={styles.boxText}>Máximo: {stats.max}</Text>
-            <Text style={styles.boxText}>Outliers: 0</Text>
           </View>
 
           {/* QUANTIS */}
@@ -224,15 +200,14 @@ export default function StatsScreen({ navigation }) {
             <Text style={styles.boxText}>Q2 (Mediana): {stats.q2}</Text>
             <Text style={styles.boxText}>Q3: {stats.q3}</Text>
           </View>
+
         </>
       )}
+
     </ScrollView>
   );
 }
 
-// ============================
-// STYLES
-// ============================
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#fff" },
   container: { padding: 20 },
