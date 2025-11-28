@@ -106,6 +106,7 @@ npx expo start
 ```
 
 * Abra o **Expo Go** no celular e escaneie o QR Code.
+* Você tambem pode abrir abrir o mobile na sua versao web do expo apertando a tecla W apos rodar npx expo start.
 
 ### 🌐 5. Acesso Online (Azure)
 
@@ -166,3 +167,4 @@ O projeto integra conhecimentos das seguintes áreas:
 Este projeto é de **uso acadêmico**, desenvolvido para fins educacionais no âmbito da disciplina de **Projeto Interdisciplinar** do curso **Desenvolvimento de Software Multiplataforma (DSM)** – *Fatec Franca*.
 
 © 2025 – **Grupo 08 (DSM-G08-PI4-2025-2)**
+
