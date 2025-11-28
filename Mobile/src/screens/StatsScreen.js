@@ -27,15 +27,16 @@ export default function StatsScreen({ navigation }) {
   };
 
   // ============================
-  // CARREGA AS ESTATÍSTICAS REAIS DA API
+  // CARREGA AS ESTATÍSTICAS DA API
   // ============================
   const selectRun = async (run) => {
     try {
       setSelectedRun(run);
 
-      const res = await api.get(`/estatisticas/run/${run.id_run}`);
+      const res = await api.get(`/v1/estatisticas/run/${run.id_run}`);
       const dados = res.data?.data ?? {};
 
+      // API já calcula tudo → apenas exibimos
       setStats({
         mean: dados.tendencia_central?.media ?? 0,
         median: dados.tendencia_central?.mediana ?? 0,
@@ -108,11 +109,11 @@ export default function StatsScreen({ navigation }) {
         <Text style={styles.empty}>Nenhuma corrida selecionada.</Text>
       )}
 
-      {/* SE TEM ESTATÍSTICAS, MOSTRA */}      
+      {/* SE TEM ESTATÍSTICAS, MOSTRA */}
       {stats && (
         <>
 
-          {/* GRÁFICO DE PIZZA REAL */} 
+          {/* GRÁFICO DE PIZZA */}
           <PieChart
             data={[
               {
@@ -150,7 +151,7 @@ export default function StatsScreen({ navigation }) {
             center={[0, 8]}
           />
 
-          {/* CARDS PRINCIPAIS */}
+          {/* CARDS */}
           <View style={styles.row}>
             <View style={styles.card}>
               <Text style={styles.cardLabel}>Média</Text>
@@ -168,7 +169,6 @@ export default function StatsScreen({ navigation }) {
             </View>
           </View>
 
-          {/* OUTROS DADOS */}
           <View style={styles.row}>
             <View style={styles.card}>
               <Text style={styles.cardLabel}>Desvio Padrão</Text>
